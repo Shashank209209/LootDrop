@@ -1,0 +1,46 @@
+{
+  "name": "@dealhunter/api",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/server.js",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:deploy": "prisma migrate deploy",
+    "db:seed": "prisma db seed",
+    "worker:deals": "tsx src/jobs/sync-deals-worker.ts",
+    "sync:deals": "tsx src/jobs/enqueue-deals-sync.ts",
+    "lint": "eslint src prisma/seed.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.seed.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "bcryptjs": "^2.4.3",
+    "@prisma/client": "^6.19.0",
+    "bullmq": "^5.34.3",
+    "ioredis": "^5.4.2",
+    "pino": "^9.6.0",
+    "pino-http": "^10.4.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "prisma": "^6.19.0",
+    "rate-limiter-flexible": "^5.0.5",
+    "tsx": "^4.19.2",
+    "vitest": "^2.1.8"
+  }
+}

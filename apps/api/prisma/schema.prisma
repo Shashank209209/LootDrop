@@ -1,0 +1,262 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AlertType {
+  PRICE_BELOW
+  DISCOUNT_ABOVE
+  ANY_SALE
+  HISTORICAL_LOW
+
+  @@map("alert_type")
+}
+
+enum NotificationType {
+  EMAIL
+  IN_APP
+
+  @@map("notification_type")
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+
+  @@map("notification_status")
+}
+
+enum ScrapeStatus {
+  RUNNING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+
+  @@map("scrape_status")
+}
+
+model User {
+  id                String         @id @default(uuid()) @db.Uuid
+  email             String         @unique @db.VarChar(320)
+  passwordHash      String         @map("password_hash")
+  displayName       String         @map("display_name") @db.VarChar(120)
+  preferredCurrency String         @default("USD") @map("preferred_currency") @db.Char(3)
+  createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  refreshTokens     RefreshToken[]
+  wishlists         Wishlist[]
+  priceAlerts       PriceAlert[]
+  notifications     Notification[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("refresh_tokens")
+}
+
+model Game {
+  id               String         @id @default(uuid()) @db.Uuid
+  title            String         @db.VarChar(300)
+  slug             String         @unique @db.VarChar(320)
+  normalizedTitle  String         @map("normalized_title") @db.VarChar(300)
+  steamAppId       Int?           @unique @map("steam_app_id")
+  rawgId           Int?           @unique @map("rawg_id")
+  cheapsharkGameId String?        @map("cheapshark_game_id") @db.VarChar(100)
+  itadId           String?        @map("itad_id") @db.VarChar(100)
+  coverUrl         String?        @map("cover_url") @db.Text
+  description      String?        @db.Text
+  releaseDate      DateTime?      @map("release_date") @db.Date
+  metacriticScore  Int?           @map("metacritic_score") @db.SmallInt
+  userRating       Decimal?       @map("user_rating") @db.Decimal(3, 1)
+  createdAt        DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  genres           GameGenre[]
+  platforms        GamePlatform[]
+  listings         StoreListing[]
+  wishlists        Wishlist[]
+  priceAlerts      PriceAlert[]
+
+  @@index([normalizedTitle])
+  @@map("games")
+}
+
+model Genre {
+  id     String      @id @default(uuid()) @db.Uuid
+  name   String      @unique @db.VarChar(100)
+  slug   String      @unique @db.VarChar(120)
+  rawgId Int?        @unique @map("rawg_id")
+  games  GameGenre[]
+
+  @@map("genres")
+}
+
+model GameGenre {
+  gameId  String @map("game_id") @db.Uuid
+  genreId String @map("genre_id") @db.Uuid
+  game    Game   @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  genre   Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, genreId])
+  @@index([genreId])
+  @@map("game_genres")
+}
+
+model Platform {
+  id    String         @id @default(uuid()) @db.Uuid
+  name  String         @unique @db.VarChar(100)
+  slug  String         @unique @db.VarChar(120)
+  games GamePlatform[]
+
+  @@map("platforms")
+}
+
+model GamePlatform {
+  gameId     String   @map("game_id") @db.Uuid
+  platformId String   @map("platform_id") @db.Uuid
+  game       Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  platform   Platform @relation(fields: [platformId], references: [id], onDelete: Cascade)
+
+  @@id([gameId, platformId])
+  @@index([platformId])
+  @@map("game_platforms")
+}
+
+model Store {
+  id                String         @id @default(uuid()) @db.Uuid
+  name              String         @db.VarChar(150)
+  slug              String         @unique @db.VarChar(170)
+  cheapsharkStoreId String?        @unique @map("cheapshark_store_id") @db.VarChar(50)
+  baseUrl           String?        @map("base_url") @db.Text
+  logoUrl           String?        @map("logo_url") @db.Text
+  isActive          Boolean        @default(true) @map("is_active")
+  listings          StoreListing[]
+  priceAlerts       PriceAlert[]
+
+  @@map("stores")
+}
+
+model StoreListing {
+  id              String          @id @default(uuid()) @db.Uuid
+  gameId          String          @map("game_id") @db.Uuid
+  storeId         String          @map("store_id") @db.Uuid
+  storeGameId     String          @map("store_game_id") @db.VarChar(150)
+  url             String          @db.Text
+  currentPrice    Decimal         @map("current_price") @db.Decimal(10, 2)
+  regularPrice    Decimal?        @map("regular_price") @db.Decimal(10, 2)
+  discountPercent Int?            @map("discount_percent") @db.SmallInt
+  currency        String          @db.Char(3)
+  isOnSale        Boolean         @default(false) @map("is_on_sale")
+  lastCheckedAt   DateTime        @map("last_checked_at") @db.Timestamptz(6)
+  createdAt       DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  game            Game            @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  store           Store           @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  priceSnapshots  PriceSnapshot[]
+  notifications   Notification[]
+
+  @@unique([storeId, storeGameId])
+  @@index([gameId])
+  @@index([storeId])
+  @@index([isOnSale, discountPercent(sort: Desc)])
+  @@map("store_listings")
+}
+
+model PriceSnapshot {
+  id              BigInt       @id @default(autoincrement()) @db.BigInt
+  listingId       String       @map("listing_id") @db.Uuid
+  price           Decimal      @db.Decimal(10, 2)
+  regularPrice    Decimal?     @map("regular_price") @db.Decimal(10, 2)
+  discountPercent Int?         @map("discount_percent") @db.SmallInt
+  currency        String       @db.Char(3)
+  capturedAt      DateTime     @default(now()) @map("captured_at") @db.Timestamptz(6)
+  listing         StoreListing @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([listingId, capturedAt(sort: Desc)])
+  @@map("price_snapshots")
+}
+
+model Wishlist {
+  id      String   @id @default(uuid()) @db.Uuid
+  userId  String   @map("user_id") @db.Uuid
+  gameId  String   @map("game_id") @db.Uuid
+  addedAt DateTime @default(now()) @map("added_at") @db.Timestamptz(6)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game    Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, gameId])
+  @@index([gameId])
+  @@map("wishlists")
+}
+
+model PriceAlert {
+  id                    String         @id @default(uuid()) @db.Uuid
+  userId                String         @map("user_id") @db.Uuid
+  gameId                String         @map("game_id") @db.Uuid
+  storeId               String?        @map("store_id") @db.Uuid
+  targetPrice           Decimal?       @map("target_price") @db.Decimal(10, 2)
+  targetDiscountPercent Int?           @map("target_discount_percent") @db.SmallInt
+  currency              String         @default("USD") @db.Char(3)
+  alertType             AlertType      @map("alert_type")
+  isActive              Boolean        @default(true) @map("is_active")
+  lastTriggeredAt       DateTime?      @map("last_triggered_at") @db.Timestamptz(6)
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  game                  Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  store                 Store?         @relation(fields: [storeId], references: [id], onDelete: SetNull)
+  notifications         Notification[]
+
+  @@index([userId, isActive])
+  @@index([gameId, isActive])
+  @@index([storeId])
+  @@map("price_alerts")
+}
+
+model Notification {
+  id             String             @id @default(uuid()) @db.Uuid
+  userId         String             @map("user_id") @db.Uuid
+  alertId        String             @map("alert_id") @db.Uuid
+  listingId      String             @map("listing_id") @db.Uuid
+  type           NotificationType
+  status         NotificationStatus @default(PENDING)
+  message        String             @db.Text
+  priceAtTrigger Decimal            @map("price_at_trigger") @db.Decimal(10, 2)
+  sentAt         DateTime?          @map("sent_at") @db.Timestamptz(6)
+  readAt         DateTime?          @map("read_at") @db.Timestamptz(6)
+  createdAt      DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  alert          PriceAlert         @relation(fields: [alertId], references: [id], onDelete: Cascade)
+  listing        StoreListing       @relation(fields: [listingId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@index([alertId, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model ScrapeRun {
+  id             String       @id @default(uuid()) @db.Uuid
+  source         String       @db.VarChar(100)
+  startedAt      DateTime     @default(now()) @map("started_at") @db.Timestamptz(6)
+  finishedAt     DateTime?    @map("finished_at") @db.Timestamptz(6)
+  status         ScrapeStatus @default(RUNNING)
+  itemsProcessed Int          @default(0) @map("items_processed")
+  itemsFailed    Int          @default(0) @map("items_failed")
+  errorMessage   String?      @map("error_message") @db.Text
+
+  @@index([startedAt(sort: Desc)])
+  @@index([source, startedAt(sort: Desc)])
+  @@map("scrape_runs")
+}
