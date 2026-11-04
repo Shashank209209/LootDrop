@@ -125,24 +125,39 @@ async function persistDeal(
 
 export interface SyncDealsResult {
   scrapeRunId: string;
+  pagesFetched: number;
   itemsProcessed: number;
   itemsFailed: number;
 }
 
 export async function runCheapSharkDealSync(
   query: DealSyncQuery,
-  dependencies: { database: Database; adapter: CheapSharkAdapter; logger: Logger },
+  dependencies: {
+    database: Database;
+    adapter: CheapSharkAdapter;
+    logger: Logger;
+    maxPages?: number;
+  },
 ): Promise<SyncDealsResult> {
-  const { database, adapter, logger } = dependencies;
+  const { database, adapter, logger, maxPages = 1 } = dependencies;
+  if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 10) {
+    throw new Error('maxPages must be an integer between 1 and 10');
+  }
+
   const scrapeRun = await database.scrapeRun.create({
     data: { source: 'cheapshark', status: 'RUNNING' },
   });
+  let pagesFetched = 0;
   let itemsProcessed = 0;
   let itemsFailed = 0;
 
   try {
     const storeBatch = await adapter.fetchStores();
     itemsFailed += storeBatch.invalidItems;
+    if (storeBatch.invalidItems > 0) {
+      logger.warn({ invalidItems: storeBatch.invalidItems }, 'CheapShark stores failed validation');
+    }
+
     for (const store of storeBatch.items) {
       try {
         const byProviderId = await database.store.findUnique({
@@ -182,17 +197,32 @@ export async function runCheapSharkDealSync(
       }
     }
 
-    const batch = await adapter.fetchDeals(query);
-    itemsFailed += batch.invalidItems;
-    for (const rawDeal of batch.items) {
-      try {
-        const deal = normalizeCheapSharkDeal(rawDeal);
-        await persistDeal(database, deal);
-        itemsProcessed += 1;
-      } catch (error) {
-        itemsFailed += 1;
-        logger.warn({ err: error, dealId: rawDeal.dealID }, 'Failed to ingest deal');
+    for (let pageOffset = 0; pageOffset < maxPages; pageOffset += 1) {
+      const batch = await adapter.fetchDeals({
+        ...query,
+        pageNumber: query.pageNumber + pageOffset,
+      });
+      pagesFetched += 1;
+      itemsFailed += batch.invalidItems;
+      if (batch.invalidItems > 0) {
+        logger.warn(
+          { pageNumber: query.pageNumber + pageOffset, invalidItems: batch.invalidItems },
+          'CheapShark deals failed validation',
+        );
       }
+
+      for (const rawDeal of batch.items) {
+        try {
+          const deal = normalizeCheapSharkDeal(rawDeal);
+          await persistDeal(database, deal);
+          itemsProcessed += 1;
+        } catch (error) {
+          itemsFailed += 1;
+          logger.warn({ err: error, dealId: rawDeal.dealID }, 'Failed to ingest deal');
+        }
+      }
+
+      if (batch.items.length + batch.invalidItems < query.pageSize) break;
     }
 
     const status = itemsFailed === 0 ? 'SUCCEEDED' : itemsProcessed === 0 ? 'FAILED' : 'PARTIAL';
@@ -208,11 +238,16 @@ export async function runCheapSharkDealSync(
       },
     });
     logger.info(
-      { scrapeRunId: scrapeRun.id, itemsProcessed, itemsFailed, status },
+      { scrapeRunId: scrapeRun.id, pagesFetched, itemsProcessed, itemsFailed, status },
       'CheapShark deal sync finished',
     );
-    return { scrapeRunId: scrapeRun.id, itemsProcessed, itemsFailed };
+    return { scrapeRunId: scrapeRun.id, pagesFetched, itemsProcessed, itemsFailed };
   } catch (error) {
+    itemsFailed += 1;
+    logger.error(
+      { err: error, scrapeRunId: scrapeRun.id, pagesFetched, itemsProcessed, itemsFailed },
+      'CheapShark deal sync failed',
+    );
     await database.scrapeRun.update({
       where: { id: scrapeRun.id },
       data: {

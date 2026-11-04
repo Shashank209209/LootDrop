@@ -5,7 +5,26 @@ import { cheapSharkDealSchema, cheapSharkStoreSchema } from './cheapshark/schema
 import { runCheapSharkDealSync } from './ingest-deals.js';
 
 describe('runCheapSharkDealSync', () => {
-  it('upserts a game and listing and captures the first observed price', async () => {
+  it('rejects a page cap outside the supported bound', async () => {
+    const database = {
+      scrapeRun: { create: vi.fn() },
+    };
+
+    await expect(
+      runCheapSharkDealSync(
+        { pageNumber: 0, pageSize: 1, sortBy: 'DealRating' },
+        {
+          database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
+          adapter: {} as never,
+          logger: pino({ level: 'silent' }),
+          maxPages: 11,
+        },
+      ),
+    ).rejects.toThrow('maxPages must be an integer between 1 and 10');
+    expect(database.scrapeRun.create).not.toHaveBeenCalled();
+  });
+
+  it('upserts a game and listing and captures the first observed price across bounded pages', async () => {
     const store = { id: 'store-uuid', cheapsharkStoreId: '1' };
     const game = {
       id: 'game-uuid',
@@ -56,35 +75,67 @@ describe('runCheapSharkDealSync', () => {
         ],
         invalidItems: 0,
       })),
-      fetchDeals: vi.fn(async () => ({
-        items: [
-          cheapSharkDealSchema.parse({
-            dealID: 'deal-uuid',
-            storeID: '1',
-            gameID: 'game-source-id',
-            title: 'Test Game',
-            salePrice: '9.99',
-            normalPrice: '19.99',
-            savings: '50',
-            steamAppID: '42',
-          }),
-        ],
-        invalidItems: 0,
-      })),
+      fetchDeals: vi
+        .fn()
+        .mockResolvedValueOnce({
+          items: [
+            cheapSharkDealSchema.parse({
+              dealID: 'deal-uuid',
+              storeID: '1',
+              gameID: 'game-source-id',
+              title: 'Test Game',
+              salePrice: '9.99',
+              normalPrice: '19.99',
+              savings: '50',
+              steamAppID: '42',
+            }),
+          ],
+          invalidItems: 0,
+        })
+        .mockResolvedValueOnce({
+          items: [
+            cheapSharkDealSchema.parse({
+              dealID: 'deal-uuid-2',
+              storeID: '1',
+              gameID: 'game-source-id-2',
+              title: 'Second Test Game',
+              salePrice: '4.99',
+              normalPrice: '9.99',
+              savings: '50',
+              steamAppID: '43',
+            }),
+          ],
+          invalidItems: 0,
+        }),
     };
 
     const result = await runCheapSharkDealSync(
-      { pageNumber: 0, pageSize: 10, sortBy: 'DealRating' },
+      { pageNumber: 0, pageSize: 1, sortBy: 'DealRating' },
       {
         database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
         adapter: adapter as never,
         logger: pino({ level: 'silent' }),
+        maxPages: 2,
       },
     );
 
-    expect(result).toEqual({ scrapeRunId: 'run-uuid', itemsProcessed: 1, itemsFailed: 0 });
-    expect(database.$transaction).toHaveBeenCalledOnce();
-    expect(transaction.storeListing.upsert).toHaveBeenCalledOnce();
+    expect(result).toEqual({
+      scrapeRunId: 'run-uuid',
+      pagesFetched: 2,
+      itemsProcessed: 2,
+      itemsFailed: 0,
+    });
+    expect(adapter.fetchDeals).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ pageNumber: 0, pageSize: 1 }),
+    );
+    expect(adapter.fetchDeals).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ pageNumber: 1, pageSize: 1 }),
+    );
+    expect(adapter.fetchDeals).toHaveBeenCalledTimes(2);
+    expect(database.$transaction).toHaveBeenCalledTimes(2);
+    expect(transaction.storeListing.upsert).toHaveBeenCalledTimes(2);
     expect(snapshotCreate).toHaveBeenCalledWith({
       data: {
         listingId: 'listing-uuid',
@@ -97,5 +148,83 @@ describe('runCheapSharkDealSync', () => {
     expect(database.scrapeRun.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'SUCCEEDED' }) }),
     );
+  });
+
+  it('logs and records invalid store and deal counts', async () => {
+    const scrapeRun = { id: 'run-uuid' };
+    const database = {
+      scrapeRun: {
+        create: vi.fn(async () => scrapeRun),
+        update: vi.fn(async () => scrapeRun),
+      },
+    };
+    const adapter = {
+      fetchStores: vi.fn(async () => ({ items: [], invalidItems: 1 })),
+      fetchDeals: vi.fn(async () => ({ items: [], invalidItems: 2 })),
+    };
+    const logLines: string[] = [];
+    const logger = pino({ level: 'trace' }, { write: (line) => logLines.push(line) });
+
+    const result = await runCheapSharkDealSync(
+      { pageNumber: 0, pageSize: 10, sortBy: 'DealRating' },
+      {
+        database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
+        adapter: adapter as never,
+        logger,
+      },
+    );
+
+    expect(result).toEqual({
+      scrapeRunId: 'run-uuid',
+      pagesFetched: 1,
+      itemsProcessed: 0,
+      itemsFailed: 3,
+    });
+    expect(database.scrapeRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'FAILED', itemsProcessed: 0, itemsFailed: 3 }),
+      }),
+    );
+    expect(logLines.map((line) => JSON.parse(line).msg)).toContain(
+      'CheapShark stores failed validation',
+    );
+    expect(logLines.map((line) => JSON.parse(line).msg)).toContain(
+      'CheapShark deals failed validation',
+    );
+  });
+
+  it('logs and records a provider failure before rethrowing it', async () => {
+    const scrapeRun = { id: 'run-uuid' };
+    const database = {
+      scrapeRun: {
+        create: vi.fn(async () => scrapeRun),
+        update: vi.fn(async () => scrapeRun),
+      },
+    };
+    const adapter = {
+      fetchStores: vi.fn(async () => {
+        throw new Error('CheapShark unavailable');
+      }),
+    };
+    const logLines: string[] = [];
+    const logger = pino({ level: 'trace' }, { write: (line) => logLines.push(line) });
+
+    await expect(
+      runCheapSharkDealSync(
+        { pageNumber: 0, pageSize: 10, sortBy: 'DealRating' },
+        {
+          database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
+          adapter: adapter as never,
+          logger,
+        },
+      ),
+    ).rejects.toThrow('CheapShark unavailable');
+
+    expect(database.scrapeRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'FAILED', itemsProcessed: 0, itemsFailed: 1 }),
+      }),
+    );
+    expect(logLines.map((line) => JSON.parse(line).msg)).toContain('CheapShark deal sync failed');
   });
 });

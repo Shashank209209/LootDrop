@@ -1,7 +1,7 @@
 import 'dotenv/config';
-import { hash } from 'bcryptjs';
 import { PrismaClient } from '@prisma/client';
 import { z } from 'zod';
+import { hashSeedPassword } from './seed-password.js';
 
 const seedEnv = z
   .object({
@@ -64,7 +64,7 @@ async function main() {
     });
   }
 
-  const passwordHash = await hash(seedEnv.DEMO_USER_PASSWORD, 12);
+  const passwordHash = await hashSeedPassword(seedEnv.DEMO_USER_PASSWORD);
   await prisma.user.upsert({
     where: { email: 'demo@dealhunter.local' },
     update: { passwordHash, displayName: 'DealHunter Demo' },

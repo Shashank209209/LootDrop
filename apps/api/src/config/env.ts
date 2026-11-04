@@ -8,6 +8,8 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
   CHEAPSHARK_USER_AGENT: z.string().min(8).default('DealHunter/0.1.0'),
+  CHEAPSHARK_MAX_PAGES: z.coerce.number().int().min(1).max(10).default(2),
+  DEAL_SYNC_INTERVAL_MINUTES: z.coerce.number().int().min(30).max(60).default(45),
 });
 
 export const env = envSchema.parse(process.env);

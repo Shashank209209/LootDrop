@@ -8,6 +8,7 @@ import { dealSyncQuerySchema } from '../pricing/contracts.js';
 import { RedisJsonCache } from '../pricing/cache.js';
 import { CheapSharkRateLimiter } from '../pricing/rate-limiter.js';
 import { runCheapSharkDealSync } from '../pricing/ingest-deals.js';
+import { syncDealsQueue } from './sync-deals-queue.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const adapter = new CheapSharkAdapter({
@@ -16,13 +17,36 @@ const adapter = new CheapSharkAdapter({
   userAgent: env.CHEAPSHARK_USER_AGENT,
 });
 
+const schedulerId = 'cheapshark-deals-sync';
+const intervalMilliseconds = env.DEAL_SYNC_INTERVAL_MINUTES * 60 * 1000;
+const existingScheduler = await syncDealsQueue.getJobScheduler(schedulerId);
+if (!existingScheduler || existingScheduler.every !== intervalMilliseconds) {
+  await syncDealsQueue.upsertJobScheduler(
+    schedulerId,
+    {
+      every: intervalMilliseconds,
+      startDate: new Date(Date.now() + intervalMilliseconds),
+    },
+    {
+      name: 'scheduled-deal-sync',
+      data: dealSyncQuerySchema.parse({ pageNumber: 0, pageSize: 20, sortBy: 'DealRating' }),
+    },
+  );
+}
+const scheduledJob = await syncDealsQueue.getJobScheduler(schedulerId);
+
 const worker = new Worker(
   'sync-deals',
   async (job) => {
     const query = dealSyncQuerySchema.parse(job.data);
-    return runCheapSharkDealSync(query, { database: prisma, adapter, logger });
+    return runCheapSharkDealSync(query, {
+      database: prisma,
+      adapter,
+      logger,
+      maxPages: env.CHEAPSHARK_MAX_PAGES,
+    });
   },
-  { connection: redis, concurrency: 1 },
+  { connection: redis, concurrency: 1, drainDelay: 30 },
 );
 
 worker.on('completed', (job, result) => {
@@ -37,6 +61,7 @@ worker.on('error', (error) => {
 
 async function shutdown() {
   await worker.close();
+  await syncDealsQueue.close();
   await prisma.$disconnect();
   await redis.quit();
 }
@@ -44,4 +69,13 @@ async function shutdown() {
 process.once('SIGINT', () => void shutdown());
 process.once('SIGTERM', () => void shutdown());
 
-logger.info('Deal sync worker ready; jobs are enqueued on user queries only');
+logger.info(
+  {
+    schedulerId: scheduledJob?.key ?? schedulerId,
+    intervalMinutes: env.DEAL_SYNC_INTERVAL_MINUTES,
+    maxPagesPerRun: env.CHEAPSHARK_MAX_PAGES,
+    maxDealsPerRun: env.CHEAPSHARK_MAX_PAGES * 20,
+    nextScheduledRun: scheduledJob?.next ? new Date(scheduledJob.next).toISOString() : null,
+  },
+  'Deal sync worker ready with a bounded recurring schedule',
+);
