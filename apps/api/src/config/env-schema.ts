@@ -12,3 +12,6 @@ export const envSchema = z.object({
   CHEAPSHARK_MAX_PAGES: z.coerce.number().int().min(1).max(10).default(2),
   DEAL_SYNC_INTERVAL_MINUTES: dealSyncIntervalSchema,
 });
+
+
+
