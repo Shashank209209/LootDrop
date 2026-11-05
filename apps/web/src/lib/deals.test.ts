@@ -48,7 +48,7 @@ describe('summarizeDeals', () => {
       },
       {
         id: 'deal-4',
-        title: 'Baldur\'s Gate 3',
+        title: "Baldur's Gate 3",
         store: 'GOG',
         price: 49.99,
         regularPrice: 49.99,

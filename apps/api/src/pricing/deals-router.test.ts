@@ -82,12 +82,14 @@ function createTestApi(options: { total?: number; rows?: typeof listingRows } = 
 
 afterEach(async () => {
   await Promise.all(
-    servers.splice(0).map(
-      (server) =>
-        new Promise<void>((resolve, reject) =>
-          server.close((error) => (error ? reject(error) : resolve())),
-        ),
-    ),
+    servers
+      .splice(0)
+      .map(
+        (server) =>
+          new Promise<void>((resolve, reject) =>
+            server.close((error) => (error ? reject(error) : resolve())),
+          ),
+      ),
   );
 });
 
@@ -223,9 +225,15 @@ describe('GET /api/v1/deals', () => {
   ])('returns the correct %s boundary', async (_label, page, skip, count) => {
     const api = createTestApi({ total: 3 });
     const response = await api.request(`/api/v1/deals?page=${page}&pageSize=2`);
-    const body = (await response.json()) as { data: unknown[]; pagination: Record<string, unknown> };
+    const body = (await response.json()) as {
+      data: unknown[];
+      pagination: Record<string, unknown>;
+    };
 
-    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0]).toMatchObject({ skip, take: 2 });
+    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0]).toMatchObject({
+      skip,
+      take: 2,
+    });
     expect(body.data).toHaveLength(count);
     expect(body.pagination).toMatchObject({
       page,

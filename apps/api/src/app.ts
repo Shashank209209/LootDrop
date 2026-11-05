@@ -46,7 +46,10 @@ const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
     return;
   }
 
-  logger.error({ errorName: error instanceof Error ? error.name : 'UnknownError' }, 'Unhandled request error');
+  logger.error(
+    { errorName: error instanceof Error ? error.name : 'UnknownError' },
+    'Unhandled request error',
+  );
   response.status(500).json({
     error: {
       code: 'INTERNAL_SERVER_ERROR',

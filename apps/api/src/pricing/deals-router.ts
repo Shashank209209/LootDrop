@@ -26,7 +26,10 @@ function parseDealsQuery(request: Request) {
     }
     const values = searchParams.getAll(key);
     if (key !== 'store' && values.length > 1) {
-      return { success: false as const, message: `Query parameter "${key}" may only be specified once` };
+      return {
+        success: false as const,
+        message: `Query parameter "${key}" may only be specified once`,
+      };
     }
     if (key === 'store') {
       raw[key] = values;
@@ -46,7 +49,9 @@ function parseDealsQuery(request: Request) {
   return { success: true as const, data: parsed.data };
 }
 
-export function dealOrderBy(sort: DealsQuery['sort']): Prisma.StoreListingOrderByWithRelationInput[] {
+export function dealOrderBy(
+  sort: DealsQuery['sort'],
+): Prisma.StoreListingOrderByWithRelationInput[] {
   switch (sort) {
     case 'discount_desc':
       return [{ discountPercent: { sort: 'desc', nulls: 'last' } }, { id: 'asc' }];
@@ -74,9 +79,7 @@ function listingWhere(query: DealsQuery): Prisma.StoreListingWhereInput {
 
   return {
     isOnSale: query.onSale,
-    store: storeFilter
-      ? { is: { isActive: true, ...storeFilter.is } }
-      : { is: { isActive: true } },
+    store: storeFilter ? { is: { isActive: true, ...storeFilter.is } } : { is: { isActive: true } },
     ...(escapedSearch ? { game: { title: { contains: escapedSearch, mode: 'insensitive' } } } : {}),
     ...(query.minPrice !== undefined || query.maxPrice !== undefined
       ? {

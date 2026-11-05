@@ -96,7 +96,8 @@ function App() {
             <p className="eyebrow">DealHunter</p>
             <h1>Track the best game deals before everyone else.</h1>
             <p className="auth-subtitle">
-              Sign in to discover new titles, price drops, and the top gaming bargains curated for you.
+              Sign in to discover new titles, price drops, and the top gaming bargains curated for
+              you.
             </p>
 
             <ul className="feature-list">
@@ -178,7 +179,11 @@ function App() {
           </div>
 
           <div className="topbar-actions">
-            <button type="button" className="ghost-button" onClick={() => setIsAuthenticated(false)}>
+            <button
+              type="button"
+              className="ghost-button"
+              onClick={() => setIsAuthenticated(false)}
+            >
               Log out
             </button>
           </div>
@@ -297,7 +302,11 @@ function App() {
             {filteredDeals.map((deal: Deal) => (
               <article key={deal.id} className="deal-card">
                 <div className="deal-cover" aria-hidden="true">
-                  {deal.image ? <img src={deal.image} alt="" /> : <span>{deal.title.slice(0, 1)}</span>}
+                  {deal.image ? (
+                    <img src={deal.image} alt="" />
+                  ) : (
+                    <span>{deal.title.slice(0, 1)}</span>
+                  )}
                 </div>
 
                 <div className="deal-body">

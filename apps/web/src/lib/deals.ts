@@ -124,7 +124,8 @@ export function summarizeDeals(deals: Deal[]): DealSummary {
     onSaleDeals.reduce((sum, deal) => sum + deal.discountPercent, 0) / onSaleDeals.length,
   );
   const cheapestPrice = Math.min(...deals.map((deal) => deal.price));
-  const bestDeal = [...onSaleDeals].sort((a, b) => b.discountPercent - a.discountPercent)[0] ?? null;
+  const bestDeal =
+    [...onSaleDeals].sort((a, b) => b.discountPercent - a.discountPercent)[0] ?? null;
 
   return {
     totalDeals: deals.length,

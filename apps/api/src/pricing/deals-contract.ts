@@ -8,24 +8,18 @@ export const dealSortOptions = [
   'title_asc',
 ] as const;
 
-const optionalNonNegativeNumber = z.preprocess(
-  (value) => {
-    if (value === undefined) return undefined;
-    if (typeof value !== 'string' || value.trim() === '') return Number.NaN;
-    return Number(value);
-  },
-  z.number().finite().nonnegative().optional(),
-);
+const optionalNonNegativeNumber = z.preprocess((value) => {
+  if (value === undefined) return undefined;
+  if (typeof value !== 'string' || value.trim() === '') return Number.NaN;
+  return Number(value);
+}, z.number().finite().nonnegative().optional());
 
 const optionalInteger = (defaultValue: number, min: number, max: number) =>
-  z.preprocess(
-    (value) => {
-      if (value === undefined) return defaultValue;
-      if (typeof value !== 'string' || value.trim() === '') return Number.NaN;
-      return Number(value);
-    },
-    z.number().int().min(min).max(max),
-  );
+  z.preprocess((value) => {
+    if (value === undefined) return defaultValue;
+    if (typeof value !== 'string' || value.trim() === '') return Number.NaN;
+    return Number(value);
+  }, z.number().int().min(min).max(max));
 
 const storesSchema = z.preprocess(
   (value) =>
@@ -45,21 +39,22 @@ export const dealsQuerySchema = z
       .transform((value) => value === 'true'),
     minPrice: optionalNonNegativeNumber,
     maxPrice: optionalNonNegativeNumber,
-    minDiscount: z.preprocess(
-      (value) => {
-        if (value === undefined) return undefined;
-        if (typeof value !== 'string' || value.trim() === '') return Number.NaN;
-        return Number(value);
-      },
-      z.number().finite().min(0).max(100).optional(),
-    ),
+    minDiscount: z.preprocess((value) => {
+      if (value === undefined) return undefined;
+      if (typeof value !== 'string' || value.trim() === '') return Number.NaN;
+      return Number(value);
+    }, z.number().finite().min(0).max(100).optional()),
     sort: z.enum(dealSortOptions).default('discount_desc'),
     page: optionalInteger(1, 1, Number.MAX_SAFE_INTEGER),
     pageSize: optionalInteger(20, 1, 50),
   })
   .strict()
   .superRefine((query, context) => {
-    if (query.minPrice !== undefined && query.maxPrice !== undefined && query.minPrice > query.maxPrice) {
+    if (
+      query.minPrice !== undefined &&
+      query.maxPrice !== undefined &&
+      query.minPrice > query.maxPrice
+    ) {
       context.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['minPrice'],

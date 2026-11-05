@@ -282,8 +282,8 @@ describe('runCheapSharkDealSync', () => {
       }),
     );
     expect(logLines.map((line) => JSON.parse(line).msg)).toContain('Failed to ingest deal');
-    expect(
-      logLines.map((line) => JSON.parse(line).err?.message).filter(Boolean),
-    ).toContain('CheapShark returned a zero salePrice without a positive normalPrice');
+    expect(logLines.map((line) => JSON.parse(line).err?.message).filter(Boolean)).toContain(
+      'CheapShark returned a zero salePrice without a positive normalPrice',
+    );
   });
 });
