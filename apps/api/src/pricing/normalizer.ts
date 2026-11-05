@@ -28,6 +28,9 @@ export function normalizeCheapSharkDeal(deal: CheapSharkDeal): NormalizedDeal {
     deal.normalPrice === undefined || deal.normalPrice === null
       ? null
       : parseNonNegativePrice(deal.normalPrice, 'normalPrice');
+  if (salePrice === 0 && (regularPrice === null || regularPrice <= 0)) {
+    throw new Error('CheapShark returned a zero salePrice without a positive normalPrice');
+  }
   const discountPercent =
     deal.savings === undefined || deal.savings === null || !Number.isFinite(deal.savings)
       ? null

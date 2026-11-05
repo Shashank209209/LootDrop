@@ -17,6 +17,7 @@ describe('runCheapSharkDealSync', () => {
           database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
           adapter: {} as never,
           logger: pino({ level: 'silent' }),
+          source: 'MANUAL',
           maxPages: 11,
         },
       ),
@@ -115,6 +116,7 @@ describe('runCheapSharkDealSync', () => {
         database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
         adapter: adapter as never,
         logger: pino({ level: 'silent' }),
+        source: 'MANUAL',
         maxPages: 2,
       },
     );
@@ -148,6 +150,9 @@ describe('runCheapSharkDealSync', () => {
     expect(database.scrapeRun.update).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ status: 'SUCCEEDED' }) }),
     );
+    expect(database.scrapeRun.create).toHaveBeenCalledWith({
+      data: { provider: 'cheapshark', source: 'MANUAL', status: 'RUNNING' },
+    });
   });
 
   it('logs and records invalid store and deal counts', async () => {
@@ -171,6 +176,7 @@ describe('runCheapSharkDealSync', () => {
         database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
         adapter: adapter as never,
         logger,
+        source: 'MANUAL',
       },
     );
 
@@ -216,6 +222,7 @@ describe('runCheapSharkDealSync', () => {
           database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
           adapter: adapter as never,
           logger,
+          source: 'SCHEDULED',
         },
       ),
     ).rejects.toThrow('CheapShark unavailable');
@@ -225,6 +232,58 @@ describe('runCheapSharkDealSync', () => {
         data: expect.objectContaining({ status: 'FAILED', itemsProcessed: 0, itemsFailed: 1 }),
       }),
     );
+    expect(database.scrapeRun.create).toHaveBeenCalledWith({
+      data: { provider: 'cheapshark', source: 'SCHEDULED', status: 'RUNNING' },
+    });
     expect(logLines.map((line) => JSON.parse(line).msg)).toContain('CheapShark deal sync failed');
+  });
+
+  it('rejects and logs free deals without a positive regular price', async () => {
+    const scrapeRun = { id: 'run-uuid' };
+    const database = {
+      scrapeRun: {
+        create: vi.fn(async () => scrapeRun),
+        update: vi.fn(async () => scrapeRun),
+      },
+    };
+    const adapter = {
+      fetchStores: vi.fn(async () => ({ items: [], invalidItems: 0 })),
+      fetchDeals: vi.fn(async () => ({
+        items: [
+          cheapSharkDealSchema.parse({
+            dealID: 'free-without-reference-price',
+            storeID: '1',
+            gameID: '1',
+            title: 'Invalid Free Game',
+            salePrice: '0',
+            normalPrice: '0',
+          }),
+        ],
+        invalidItems: 0,
+      })),
+    };
+    const logLines: string[] = [];
+    const logger = pino({ level: 'trace' }, { write: (line) => logLines.push(line) });
+
+    const result = await runCheapSharkDealSync(
+      { pageNumber: 0, pageSize: 10, sortBy: 'DealRating' },
+      {
+        database: database as unknown as Parameters<typeof runCheapSharkDealSync>[1]['database'],
+        adapter: adapter as never,
+        logger,
+        source: 'MANUAL',
+      },
+    );
+
+    expect(result).toMatchObject({ itemsProcessed: 0, itemsFailed: 1 });
+    expect(database.scrapeRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'FAILED', itemsProcessed: 0, itemsFailed: 1 }),
+      }),
+    );
+    expect(logLines.map((line) => JSON.parse(line).msg)).toContain('Failed to ingest deal');
+    expect(
+      logLines.map((line) => JSON.parse(line).err?.message).filter(Boolean),
+    ).toContain('CheapShark returned a zero salePrice without a positive normalPrice');
   });
 });

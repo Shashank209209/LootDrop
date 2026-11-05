@@ -43,6 +43,7 @@ const worker = new Worker(
       database: prisma,
       adapter,
       logger,
+      source: job.name === 'scheduled-deal-sync' ? 'SCHEDULED' : 'MANUAL',
       maxPages: env.CHEAPSHARK_MAX_PAGES,
     });
   },

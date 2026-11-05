@@ -136,16 +136,17 @@ export async function runCheapSharkDealSync(
     database: Database;
     adapter: CheapSharkAdapter;
     logger: Logger;
+    source: 'SCHEDULED' | 'MANUAL';
     maxPages?: number;
   },
 ): Promise<SyncDealsResult> {
-  const { database, adapter, logger, maxPages = 1 } = dependencies;
+  const { database, adapter, logger, source, maxPages = 1 } = dependencies;
   if (!Number.isInteger(maxPages) || maxPages < 1 || maxPages > 10) {
     throw new Error('maxPages must be an integer between 1 and 10');
   }
 
   const scrapeRun = await database.scrapeRun.create({
-    data: { source: 'cheapshark', status: 'RUNNING' },
+    data: { provider: 'cheapshark', source, status: 'RUNNING' },
   });
   let pagesFetched = 0;
   let itemsProcessed = 0;

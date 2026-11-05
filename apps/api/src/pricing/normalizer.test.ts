@@ -55,4 +55,37 @@ describe('CheapShark normalization', () => {
   it('rejects malformed deals without throwing from the batch parser', () => {
     expect(cheapSharkDealSchema.safeParse({ dealID: 'broken' }).success).toBe(false);
   });
+
+  it('accepts a free deal when its regular price is positive', () => {
+    const deal = cheapSharkDealSchema.parse({
+      dealID: 'free-deal',
+      storeID: '1',
+      gameID: '332562',
+      title: 'Free Game',
+      salePrice: '0',
+      normalPrice: '24.99',
+      savings: '100',
+    });
+
+    expect(normalizeCheapSharkDeal(deal)).toMatchObject({
+      salePrice: 0,
+      regularPrice: 24.99,
+      discountPercent: 100,
+    });
+  });
+
+  it.each([undefined, '0'])('rejects a free deal with invalid regular price %s', (normalPrice) => {
+    const deal = cheapSharkDealSchema.parse({
+      dealID: 'invalid-free-deal',
+      storeID: '1',
+      gameID: '332562',
+      title: 'Invalid Free Game',
+      salePrice: '0',
+      normalPrice,
+    });
+
+    expect(() => normalizeCheapSharkDeal(deal)).toThrow(
+      'CheapShark returned a zero salePrice without a positive normalPrice',
+    );
+  });
 });
