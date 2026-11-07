@@ -4,6 +4,7 @@
   "version": "0.1.0",
   "type": "module",
   "workspaces": [
+    "packages/contracts",
     "apps/api",
     "apps/web"
   ],
@@ -11,14 +12,15 @@
     "node": ">=20"
   },
   "scripts": {
-    "dev:api": "npm run dev --workspace=@dealhunter/api",
-    "dev:web": "npm run dev --workspace=@dealhunter/web",
+    "postinstall": "npm run db:generate --workspace=@dealhunter/api",
+    "dev:api": "npm run build --workspace=@dealhunter/contracts && npm run dev --workspace=@dealhunter/api",
+    "dev:web": "npm run build --workspace=@dealhunter/contracts && npm run dev --workspace=@dealhunter/web",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
+    "test": "npm run build --workspace=@dealhunter/contracts && npm run test --workspaces --if-present"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",

@@ -170,25 +170,67 @@ describe('GET /api/v1/deals', () => {
     });
   });
 
-  it('accepts repeatable and comma-separated store filters', async () => {
+  it('filters by slugs without comparing slug text to the UUID id column', async () => {
     const api = createTestApi();
-    await api.request('/api/v1/deals?store=steam,gog&store=store-3');
+    await api.request('/api/v1/deals?store=steam');
 
     expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0].where?.store).toEqual({
       is: {
         isActive: true,
-        OR: [
-          { id: 'steam' },
-          { slug: 'steam' },
-          { id: 'gog' },
-          { slug: 'gog' },
-          { id: 'store-3' },
-          { slug: 'store-3' },
-        ],
+        OR: [{ slug: 'steam' }],
       },
     });
   });
 
+  it('returns an empty result for an unknown store slug', async () => {
+    const api = createTestApi({ total: 0, rows: [] });
+    const response = await api.request('/api/v1/deals?store=not-a-store');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      data: [],
+      pagination: { totalItems: 0, totalPages: 0 },
+    });
+  });
+
+  it('accepts a UUID store id', async () => {
+    const api = createTestApi();
+    await api.request('/api/v1/deals?store=9ed24074-d90d-4a45-a7de-082c1dac949d');
+
+    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0].where?.store).toEqual({
+      is: {
+        isActive: true,
+        OR: [{ id: '9ed24074-d90d-4a45-a7de-082c1dac949d' }],
+      },
+    });
+  });
+
+  it('accepts two stores with repeated and comma-separated values', async () => {
+    const api = createTestApi();
+    await api.request('/api/v1/deals?store=steam,gog');
+
+    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0].where?.store).toEqual({
+      is: {
+        isActive: true,
+        OR: [{ slug: 'steam' }, { slug: 'gog' }],
+      },
+    });
+  });
+
+  it('combines multiple stores with search and sorting', async () => {
+    const api = createTestApi();
+    await api.request('/api/v1/deals?store=steam,gog&q=borderlands&sort=price_asc');
+
+    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        store: {
+          is: { isActive: true, OR: [{ slug: 'steam' }, { slug: 'gog' }] },
+        },
+        game: { title: { contains: 'borderlands', mode: 'insensitive' } },
+      },
+      orderBy: [{ currentPrice: 'asc' }, { id: 'asc' }],
+    });
+  });
   it('supports onSale=false', async () => {
     const api = createTestApi();
     await api.request('/api/v1/deals?onSale=false');

@@ -1,6 +1,6 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
+import { dealsQuerySchema, type DealsQuery } from '@dealhunter/contracts';
 import { Router, type Request, type Response } from 'express';
-import { dealsQuerySchema, type DealsQuery } from './deals-contract.js';
 
 type DealsDatabase = Pick<PrismaClient, '$transaction' | 'store' | 'storeListing'>;
 
@@ -71,7 +71,12 @@ function listingWhere(query: DealsQuery): Prisma.StoreListingWhereInput {
     query.store.length > 0
       ? {
           is: {
-            OR: query.store.flatMap((store) => [{ id: store }, { slug: store }]),
+            isActive: true,
+            OR: query.store.map((store) =>
+              /^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(store)
+                ? { id: store }
+                : { slug: store },
+            ),
           },
         }
       : undefined;
@@ -79,7 +84,7 @@ function listingWhere(query: DealsQuery): Prisma.StoreListingWhereInput {
 
   return {
     isOnSale: query.onSale,
-    store: storeFilter ? { is: { isActive: true, ...storeFilter.is } } : { is: { isActive: true } },
+    store: storeFilter ?? { is: { isActive: true } },
     ...(escapedSearch ? { game: { title: { contains: escapedSearch, mode: 'insensitive' } } } : {}),
     ...(query.minPrice !== undefined || query.maxPrice !== undefined
       ? {
