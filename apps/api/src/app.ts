@@ -2,11 +2,15 @@ import cors from 'cors';
 import express, { type ErrorRequestHandler } from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
+import swaggerUi from 'swagger-ui-express';
 import pino from 'pino';
 import { pinoHttp } from 'pino-http';
 import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { createDealsRouter } from './pricing/deals-router.js';
+import { createGamesRouter } from './games/games-router.js';
+import { createCuratedDealsRouter } from './pricing/curated-deals-router.js';
+import { createOpenApiDocument } from './openapi.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const app = express();
@@ -32,7 +36,18 @@ app.get('/api/v1/health', (_request, response) => {
 app.get('/health', (_request, response) => {
   response.json({ status: 'ok' });
 });
+const openApiDocument = createOpenApiDocument();
+app.get('/docs/openapi.json', (_request, response) => {
+  response.json(openApiDocument);
+});
+app.use(
+  '/docs',
+  swaggerUi.serve,
+  swaggerUi.setup(undefined, { swaggerOptions: { url: '/docs/openapi.json' } }),
+);
 app.use('/api/v1', createDealsRouter(prisma));
+app.use('/api/v1', createCuratedDealsRouter(prisma));
+app.use('/api/v1', createGamesRouter(prisma));
 
 app.use((_request, response) => {
   response.status(404).json({

@@ -1,6 +1,7 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import { dealsQuerySchema, type DealsQuery } from '@dealhunter/contracts';
 import { Router, type Request, type Response } from 'express';
+import { dealSelect, serializeDeal } from './deal-serialization.js';
 
 type DealsDatabase = Pick<PrismaClient, '$transaction' | 'store' | 'storeListing'>;
 
@@ -98,11 +99,6 @@ function listingWhere(query: DealsQuery): Prisma.StoreListingWhereInput {
   };
 }
 
-function moneyNumber(value: Prisma.Decimal | null): number | null {
-  if (value === null) return null;
-  return Math.round((value.toNumber() + Number.EPSILON) * 100) / 100;
-}
-
 function sendQueryError(response: Response, message: string) {
   response.status(400).json({
     error: { code: 'INVALID_QUERY', message, details: null },
@@ -131,19 +127,7 @@ export function createDealsRouter(database: DealsDatabase): Router {
               orderBy: dealOrderBy(query.sort),
               skip: (query.page - 1) * query.pageSize,
               take: query.pageSize,
-              select: {
-                id: true,
-                gameId: true,
-                currentPrice: true,
-                regularPrice: true,
-                discountPercent: true,
-                currency: true,
-                isOnSale: true,
-                url: true,
-                lastCheckedAt: true,
-                game: { select: { title: true, slug: true } },
-                store: { select: { id: true, name: true, slug: true } },
-              },
+              select: dealSelect,
             }),
           ]);
           return { totalItems: count, listings: rows };
@@ -152,20 +136,7 @@ export function createDealsRouter(database: DealsDatabase): Router {
       );
       const totalPages = Math.ceil(totalItems / query.pageSize);
       response.json({
-        data: listings.map((listing) => ({
-          id: listing.id,
-          gameId: listing.gameId,
-          gameTitle: listing.game.title,
-          gameSlug: listing.game.slug,
-          store: listing.store,
-          currentPrice: moneyNumber(listing.currentPrice) ?? 0,
-          regularPrice: moneyNumber(listing.regularPrice),
-          discountPercent: listing.discountPercent,
-          currency: listing.currency,
-          isOnSale: listing.isOnSale,
-          dealUrl: listing.url,
-          lastCheckedAt: listing.lastCheckedAt.toISOString(),
-        })),
+        data: listings.map(serializeDeal),
         pagination: {
           page: query.page,
           pageSize: query.pageSize,

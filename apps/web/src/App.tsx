@@ -1,8 +1,19 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useEffect, useState, type FormEvent } from 'react';
-import { Route, Routes, useSearchParams } from 'react-router-dom';
-import { dealSortOptions, type DealResponse } from '@dealhunter/contracts';
-import { getDeals, getStores, type DealQueryParams } from './lib/api-client.js';
+import { Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
+import { dealSortOptions } from '@dealhunter/contracts';
+import { CuratedDealSection } from './components/CuratedDealSection.js';
+import { DealCard } from './components/DealCard.js';
+import { GameAutocomplete } from './components/GameAutocomplete.js';
+import { GameDetailPage } from './components/GameDetailPage.js';
+import {
+  getBestDeals,
+  getDeals,
+  getFreeDeals,
+  getHistoricalLows,
+  getStores,
+  type DealQueryParams,
+} from './lib/api-client.js';
 
 type AuthMode = 'login' | 'register';
 
@@ -137,7 +148,28 @@ function App() {
     );
   }
 
-  return <Dashboard userName={userName} onLogout={() => setIsAuthenticated(false)} />;
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={<Dashboard userName={userName} onLogout={() => setIsAuthenticated(false)} />}
+      />
+      <Route path="/games/:slug" element={<GameDetailPage />} />
+      <Route
+        path="*"
+        element={
+          <main className="page-shell">
+            <div className="page-inner request-state">
+              <h1>Page not found</h1>
+              <Link className="ghost-button" to="/">
+                Back to deals
+              </Link>
+            </div>
+          </main>
+        }
+      />
+    </Routes>
+  );
 }
 
 type DashboardProps = { userName: string; onLogout: () => void };
@@ -149,16 +181,10 @@ function readNumber(searchParams: URLSearchParams, name: string): number | undef
   return Number.isFinite(value) ? value : undefined;
 }
 
-function formatCurrency(amount: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
-  } catch {
-    return `${currency} ${amount.toFixed(2)}`;
-  }
-}
-
 function Dashboard({ userName, onLogout }: DashboardProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const returnTo = `${location.pathname}${location.search}`;
   const urlQuery = searchParams.toString();
   const [searchInput, setSearchInput] = useState(searchParams.get('q') ?? '');
   const selectedStore = searchParams.get('store') ?? '';
@@ -195,6 +221,21 @@ function Dashboard({ userName, onLogout }: DashboardProps) {
     queryKey: ['stores'],
     queryFn: ({ signal }) => getStores(signal),
     staleTime: 5 * 60 * 1000,
+  });
+  const bestDealsQuery = useQuery({
+    queryKey: ['best-deals'],
+    queryFn: ({ signal }) => getBestDeals(signal),
+    staleTime: 60_000,
+  });
+  const freeDealsQuery = useQuery({
+    queryKey: ['free-deals'],
+    queryFn: ({ signal }) => getFreeDeals(signal),
+    staleTime: 60_000,
+  });
+  const historicalLowsQuery = useQuery({
+    queryKey: ['historical-lows'],
+    queryFn: ({ signal }) => getHistoricalLows(signal),
+    staleTime: 60_000,
   });
 
   useEffect(() => {
@@ -255,9 +296,12 @@ function Dashboard({ userName, onLogout }: DashboardProps) {
             <p className="eyebrow">DealHunter</p>
             <h1>Welcome back, {userName}</h1>
           </div>
-          <button type="button" className="ghost-button" onClick={onLogout}>
-            Log out
-          </button>
+          <div className="topbar-actions">
+            <GameAutocomplete />
+            <button type="button" className="ghost-button" onClick={onLogout}>
+              Log out
+            </button>
+          </div>
         </header>
 
         <section className="hero-panel">
@@ -366,6 +410,36 @@ function Dashboard({ userName, onLogout }: DashboardProps) {
           </label>
         </section>
 
+        <div className="curated-sections">
+          <CuratedDealSection
+            title="Best deals"
+            data={bestDealsQuery.data?.data}
+            isPending={bestDealsQuery.isPending}
+            isError={bestDealsQuery.isError}
+            error={bestDealsQuery.error}
+            returnTo={returnTo}
+            onRetry={() => void bestDealsQuery.refetch()}
+          />
+          <CuratedDealSection
+            title="Free games"
+            data={freeDealsQuery.data?.data}
+            isPending={freeDealsQuery.isPending}
+            isError={freeDealsQuery.isError}
+            error={freeDealsQuery.error}
+            returnTo={returnTo}
+            onRetry={() => void freeDealsQuery.refetch()}
+          />
+          <CuratedDealSection
+            title="Historical lows"
+            data={historicalLowsQuery.data?.data}
+            isPending={historicalLowsQuery.isPending}
+            isError={historicalLowsQuery.isError}
+            error={historicalLowsQuery.error}
+            returnTo={returnTo}
+            onRetry={() => void historicalLowsQuery.refetch()}
+          />
+        </div>
+
         <section className="deals-panel" aria-label="Live deals" aria-busy={dealsQuery.isFetching}>
           <div className="panel-header">
             <h3>Current deals</h3>
@@ -414,7 +488,7 @@ function Dashboard({ userName, onLogout }: DashboardProps) {
             <>
               <div className="deal-grid">
                 {deals.map((deal) => (
-                  <DealCard key={deal.id} deal={deal} />
+                  <DealCard key={deal.id} deal={deal} returnTo={returnTo} />
                 ))}
               </div>
               <nav className="pagination-controls" aria-label="Deal pages">
@@ -443,42 +517,6 @@ function Dashboard({ userName, onLogout }: DashboardProps) {
         </section>
       </div>
     </main>
-  );
-}
-
-function DealCard({ deal }: { deal: DealResponse }) {
-  return (
-    <article className="deal-card">
-      <div className="deal-cover" aria-hidden="true">
-        <span>{deal.gameTitle.slice(0, 1) || '?'}</span>
-      </div>
-      <div className="deal-body">
-        <div className="deal-header">
-          <div>
-            <p className="deal-store">{deal.store.name}</p>
-            <h4>{deal.gameTitle}</h4>
-          </div>
-          {deal.discountPercent !== null ? (
-            <span className={`badge ${deal.isOnSale ? 'sale' : ''}`}>
-              {deal.isOnSale ? `${deal.discountPercent}% off` : 'Regular'}
-            </span>
-          ) : null}
-        </div>
-        <div className="deal-meta-line">
-          <span>{deal.isOnSale ? 'On sale' : 'Regular price'}</span>
-          <span>Checked {new Date(deal.lastCheckedAt).toLocaleString()}</span>
-        </div>
-        <div className="price-row">
-          <strong>{formatCurrency(deal.currentPrice, deal.currency)}</strong>
-          {deal.regularPrice !== null && deal.regularPrice !== deal.currentPrice ? (
-            <span>{formatCurrency(deal.regularPrice, deal.currency)}</span>
-          ) : null}
-        </div>
-        <a href={deal.dealUrl} target="_blank" rel="noreferrer">
-          View deal
-        </a>
-      </div>
-    </article>
   );
 }
 

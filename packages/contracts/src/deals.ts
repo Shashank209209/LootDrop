@@ -80,6 +80,42 @@ export interface DealResponse {
   lastCheckedAt: string;
 }
 
+export const dealResponseSchema = z.object({
+  id: z.string(),
+  gameId: z.string(),
+  gameTitle: z.string(),
+  gameSlug: z.string(),
+  store: z.object({ id: z.string(), name: z.string(), slug: z.string() }),
+  currentPrice: z.number(),
+  regularPrice: z.number().nullable(),
+  discountPercent: z.number().nullable(),
+  currency: z.string(),
+  isOnSale: z.boolean(),
+  dealUrl: z.string().url(),
+  lastCheckedAt: z.string().datetime(),
+});
+
+export const dealsResponseSchema = z.object({
+  data: z.array(dealResponseSchema),
+  pagination: z.object({
+    page: z.number().int(),
+    pageSize: z.number().int(),
+    totalItems: z.number().int(),
+    totalPages: z.number().int(),
+    hasNextPage: z.boolean(),
+  }),
+});
+
+export const storeResponseSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+});
+
+export const storesResponseSchema = z.object({
+  data: z.array(storeResponseSchema),
+});
+
 export interface DealsResponse {
   data: DealResponse[];
   pagination: {
