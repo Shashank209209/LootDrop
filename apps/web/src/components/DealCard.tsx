@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { DealResponse } from '@dealhunter/contracts';
+import { WishlistButton } from './WishlistButton.js';
 
 function formatCurrency(amount: number, currency: string) {
   try {
@@ -42,6 +43,7 @@ export function DealCard({
               {deal.isOnSale ? `${deal.discountPercent}% off` : 'Regular'}
             </span>
           ) : null}
+          <WishlistButton gameId={deal.gameId} gameTitle={deal.gameTitle} />
         </div>
         <div className="deal-meta-line">
           <span>{deal.isOnSale ? 'On sale' : 'Regular price'}</span>

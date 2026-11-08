@@ -121,7 +121,11 @@ img {
   margin-bottom: 22px;
 }
 
-.auth-toggle button {
+.auth-toggle button,
+.auth-toggle a {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   border: none;
   border-radius: 12px;
   background: transparent;
@@ -129,9 +133,11 @@ img {
   font-weight: 700;
   color: #52525b;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .auth-toggle button.active,
+.auth-toggle a.active,
 .filter-chip.active {
   background: #0f172a;
   color: white;
@@ -171,6 +177,21 @@ img {
   margin: 0;
   color: #b91c1c;
   font-size: 0.9rem;
+}
+
+.field-error {
+  color: #b91c1c;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.password-visibility {
+  justify-self: start;
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .primary-button,
@@ -216,6 +237,23 @@ img {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.account-menu {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.account-name {
+  max-width: 180px;
+  overflow: hidden;
+  color: #27272a;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .game-autocomplete {
@@ -642,6 +680,95 @@ img {
   gap: 12px;
 }
 
+.wishlist-control {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.wishlist-button {
+  display: inline-flex;
+  width: 44px;
+  min-width: 44px;
+  height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d4d4d8;
+  border-radius: 50%;
+  background: #fff;
+  color: #52525b;
+  font-size: 1.45rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.wishlist-button.active {
+  border-color: #be123c;
+  color: #be123c;
+}
+
+.wishlist-button:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+
+.wishlist-error {
+  color: #b91c1c;
+  font-size: 0.8rem;
+}
+
+.wishlist-list {
+  display: grid;
+  gap: 12px;
+}
+
+.wishlist-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px;
+  border: 1px solid #e4e4e7;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+}
+
+.wishlist-entry h2 {
+  margin: 0 0 8px;
+  font-size: 1.15rem;
+}
+
+.wishlist-entry h2 a {
+  color: #18181b;
+  text-decoration: none;
+}
+
+.wishlist-entry h2 a:hover {
+  color: #0f766e;
+  text-decoration: underline;
+}
+
+.wishlist-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.wishlist-price strong {
+  font-size: 1.15rem;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
 .deal-store {
   margin: 0;
   font-size: 0.72rem;
@@ -968,6 +1095,10 @@ img {
     flex-direction: column;
   }
 
+  .account-menu {
+    justify-content: flex-start;
+  }
+
   .game-autocomplete {
     width: 100%;
   }
@@ -976,6 +1107,10 @@ img {
   .detail-panel .panel-header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .wishlist-entry {
+    align-items: flex-start;
   }
 
   .curated-skeletons {

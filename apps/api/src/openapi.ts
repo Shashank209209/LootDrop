@@ -8,6 +8,7 @@ import {
   curatedDealsResponseSchema,
   dealsQuerySchema,
   dealsResponseSchema,
+  authSessionResponseSchema,
   freeDealsQuerySchema,
   gameDetailResponseSchema,
   gameSearchQuerySchema,
@@ -15,9 +16,17 @@ import {
   gameSlugSchema,
   historicalLowsQuerySchema,
   historicalLowsResponseSchema,
+  loginRequestSchema,
+  meResponseSchema,
   priceHistoryQuerySchema,
   priceHistoryResponseSchema,
+  refreshResponseSchema,
+  registerRequestSchema,
   storesResponseSchema,
+  wishlistAddRequestSchema,
+  wishlistIdsResponseSchema,
+  wishlistQuerySchema,
+  wishlistResponseSchema,
 } from '@dealhunter/contracts';
 import { z } from 'zod';
 
@@ -37,6 +46,11 @@ const healthSchema = z.object({ status: z.literal('ok') }).openapi('HealthRespon
 const registry = new OpenAPIRegistry();
 registry.register('ApiError', errorSchema);
 registry.register('HealthResponse', healthSchema);
+registry.registerComponent('securitySchemes', 'bearerAuth', {
+  type: 'http',
+  scheme: 'bearer',
+  bearerFormat: 'JWT',
+});
 
 function response(schema: z.ZodTypeAny, description: string) {
   return {
@@ -135,6 +149,102 @@ registry.registerPath({
   responses: {
     200: response(historicalLowsResponseSchema, 'Historical-low listings'),
     400: response(errorSchema, 'Invalid limit'),
+  },
+});
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/register',
+  summary: 'Register a user',
+  request: { body: { content: { 'application/json': { schema: registerRequestSchema } } } },
+  responses: {
+    201: response(authSessionResponseSchema, 'User registered and session created'),
+    400: response(errorSchema, 'Invalid registration request'),
+    409: response(errorSchema, 'Registration unavailable'),
+    429: response(errorSchema, 'Too many authentication attempts'),
+  },
+});
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/login',
+  summary: 'Log in',
+  request: { body: { content: { 'application/json': { schema: loginRequestSchema } } } },
+  responses: {
+    200: response(authSessionResponseSchema, 'Authenticated user and access token'),
+    400: response(errorSchema, 'Invalid login request'),
+    401: response(errorSchema, 'Invalid email or password'),
+    429: response(errorSchema, 'Too many authentication attempts'),
+  },
+});
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/refresh',
+  summary: 'Rotate refresh token',
+  responses: {
+    200: response(refreshResponseSchema, 'New access and refresh tokens'),
+    401: response(errorSchema, 'Refresh session is invalid'),
+  },
+});
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/auth/logout',
+  summary: 'Log out and revoke refresh token',
+  responses: { 204: { description: 'Refresh session revoked and cookie cleared' } },
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/auth/me',
+  summary: 'Get current user',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: response(meResponseSchema, 'Authenticated user'),
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/wishlist',
+  summary: 'List the current user wishlist',
+  security: [{ bearerAuth: [] }],
+  request: { query: wishlistQuerySchema },
+  responses: {
+    200: response(wishlistResponseSchema, 'Paginated wishlist'),
+    400: response(errorSchema, 'Invalid pagination'),
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/wishlist',
+  summary: 'Add a game to the wishlist',
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { 'application/json': { schema: wishlistAddRequestSchema } } } },
+  responses: {
+    200: { description: 'Game was already wishlisted' },
+    201: { description: 'Game added to wishlist' },
+    400: response(errorSchema, 'Invalid request'),
+    401: response(errorSchema, 'Authentication required'),
+    404: response(errorSchema, 'Game not found'),
+  },
+});
+registry.registerPath({
+  method: 'delete',
+  path: '/api/v1/wishlist/{gameId}',
+  summary: 'Remove a game from the wishlist',
+  security: [{ bearerAuth: [] }],
+  request: { params: z.object({ gameId: z.string().uuid() }) },
+  responses: {
+    204: { description: 'Wishlist item removed if present' },
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/wishlist/ids',
+  summary: 'Get wishlist game IDs',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: response(wishlistIdsResponseSchema, 'Up to 1000 wishlisted game IDs'),
+    401: response(errorSchema, 'Authentication required'),
   },
 });
 

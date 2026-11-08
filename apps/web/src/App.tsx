@@ -1,11 +1,15 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useEffect, useState, type FormEvent } from 'react';
-import { Link, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { dealSortOptions } from '@dealhunter/contracts';
+import { AuthPage } from './auth/AuthPage.js';
+import { AuthProvider, useAuth } from './auth/AuthProvider.js';
+import { AccountMenu } from './components/AccountMenu.js';
 import { CuratedDealSection } from './components/CuratedDealSection.js';
 import { DealCard } from './components/DealCard.js';
 import { GameAutocomplete } from './components/GameAutocomplete.js';
 import { GameDetailPage } from './components/GameDetailPage.js';
+import { WishlistPage } from './components/WishlistPage.js';
 import {
   getBestDeals,
   getDeals,
@@ -15,165 +19,6 @@ import {
   type DealQueryParams,
 } from './lib/api-client.js';
 
-type AuthMode = 'login' | 'register';
-
-type AuthForm = {
-  name: string;
-  email: string;
-  password: string;
-};
-
-const emptyForm: AuthForm = {
-  name: '',
-  email: '',
-  password: '',
-};
-
-function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [authForm, setAuthForm] = useState<AuthForm>(emptyForm);
-  const [authError, setAuthError] = useState('');
-  const [userName, setUserName] = useState('Player');
-
-  const handleAuthChange = (field: keyof AuthForm, value: string) => {
-    setAuthForm((current) => ({ ...current, [field]: value }));
-    setAuthError('');
-  };
-
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const email = authForm.email.trim();
-    const password = authForm.password.trim();
-
-    if (!email || !password || (authMode === 'register' && !authForm.name.trim())) {
-      setAuthError('Please complete all required fields.');
-      return;
-    }
-
-    if (!email.includes('@') || !email.includes('.')) {
-      setAuthError('Use a valid email address.');
-      return;
-    }
-
-    if (password.length < 6) {
-      setAuthError('Password must contain at least 6 characters.');
-      return;
-    }
-
-    const displayName = authMode === 'register' ? authForm.name.trim() : email.split('@')[0];
-    setUserName(displayName || 'Player');
-    setIsAuthenticated(true);
-  };
-
-  if (!isAuthenticated) {
-    return (
-      <main className="auth-shell">
-        <div className="auth-panel">
-          <div className="auth-copy">
-            <p className="eyebrow">DealHunter</p>
-            <h1>Track the best game deals before everyone else.</h1>
-            <p className="auth-subtitle">
-              Sign in to discover new titles, price drops, and the top gaming bargains curated for
-              you.
-            </p>
-
-            <ul className="feature-list">
-              <li>Live deal tracking</li>
-              <li>Smart game search</li>
-              <li>Best discount alerts</li>
-            </ul>
-          </div>
-
-          <div className="auth-card">
-            <div className="auth-toggle">
-              <button
-                type="button"
-                className={authMode === 'login' ? 'active' : ''}
-                onClick={() => setAuthMode('login')}
-              >
-                Log in
-              </button>
-              <button
-                type="button"
-                className={authMode === 'register' ? 'active' : ''}
-                onClick={() => setAuthMode('register')}
-              >
-                Register
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmit} className="auth-form">
-              {authMode === 'register' ? (
-                <label>
-                  Full name
-                  <input
-                    value={authForm.name}
-                    onChange={(event) => handleAuthChange('name', event.target.value)}
-                    placeholder="Alex Morgan"
-                  />
-                </label>
-              ) : null}
-
-              <label>
-                Email address
-                <input
-                  type="email"
-                  value={authForm.email}
-                  onChange={(event) => handleAuthChange('email', event.target.value)}
-                  placeholder="you@example.com"
-                />
-              </label>
-
-              <label>
-                Password
-                <input
-                  type="password"
-                  value={authForm.password}
-                  onChange={(event) => handleAuthChange('password', event.target.value)}
-                  placeholder="Minimum 6 characters"
-                />
-              </label>
-
-              {authError ? <p className="auth-error">{authError}</p> : null}
-
-              <button type="submit" className="primary-button">
-                {authMode === 'login' ? 'Log in' : 'Create account'}
-              </button>
-            </form>
-          </div>
-        </div>
-      </main>
-    );
-  }
-
-  return (
-    <Routes>
-      <Route
-        path="/"
-        element={<Dashboard userName={userName} onLogout={() => setIsAuthenticated(false)} />}
-      />
-      <Route path="/games/:slug" element={<GameDetailPage />} />
-      <Route
-        path="*"
-        element={
-          <main className="page-shell">
-            <div className="page-inner request-state">
-              <h1>Page not found</h1>
-              <Link className="ghost-button" to="/">
-                Back to deals
-              </Link>
-            </div>
-          </main>
-        }
-      />
-    </Routes>
-  );
-}
-
-type DashboardProps = { userName: string; onLogout: () => void };
-
 function readNumber(searchParams: URLSearchParams, name: string): number | undefined {
   const raw = searchParams.get(name);
   if (raw === null || raw.trim() === '') return undefined;
@@ -181,7 +26,8 @@ function readNumber(searchParams: URLSearchParams, name: string): number | undef
   return Number.isFinite(value) ? value : undefined;
 }
 
-function Dashboard({ userName, onLogout }: DashboardProps) {
+function Dashboard() {
+  const { state } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}`;
@@ -294,13 +140,15 @@ function Dashboard({ userName, onLogout }: DashboardProps) {
         <header className="topbar">
           <div>
             <p className="eyebrow">DealHunter</p>
-            <h1>Welcome back, {userName}</h1>
+            <h1>
+              {state.status === 'authenticated'
+                ? `Welcome back, ${state.user.displayName}`
+                : 'Discover game deals'}
+            </h1>
           </div>
           <div className="topbar-actions">
             <GameAutocomplete />
-            <button type="button" className="ghost-button" onClick={onLogout}>
-              Log out
-            </button>
+            <AccountMenu />
           </div>
         </header>
 
@@ -520,10 +368,61 @@ function Dashboard({ userName, onLogout }: DashboardProps) {
   );
 }
 
-export default function AppRouter() {
+function ProtectedWishlist() {
+  const { state } = useAuth();
+  const location = useLocation();
+  if (state.status !== 'authenticated') {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
+  return <WishlistPage />;
+}
+
+function AppRoutes() {
+  const { state } = useAuth();
+  if (state.status === 'loading') {
+    return (
+      <main className="page-shell">
+        <div className="page-inner request-state" role="status">
+          Restoring your session…
+        </div>
+      </main>
+    );
+  }
+
   return (
     <Routes>
-      <Route path="*" element={<App />} />
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/games/:slug" element={<GameDetailPage />} />
+      <Route path="/wishlist" element={<ProtectedWishlist />} />
+      <Route path="/login" element={<AuthPage mode="login" />} />
+      <Route path="/register" element={<AuthPage mode="register" />} />
+      <Route
+        path="*"
+        element={
+          <main className="page-shell">
+            <div className="page-inner request-state">
+              <h1>Page not found</h1>
+              <Link className="ghost-button" to="/">
+                Back to deals
+              </Link>
+            </div>
+          </main>
+        }
+      />
     </Routes>
+  );
+}
+
+export default function AppRouter() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }

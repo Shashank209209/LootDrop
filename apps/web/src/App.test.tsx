@@ -6,6 +6,7 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
+  AuthSessionResponse,
   DealResponse,
   DealsResponse,
   GameDetailResponse,
@@ -13,6 +14,7 @@ import type {
   HistoricalLowsResponse,
   PriceHistoryResponse,
   StoreResponse,
+  WishlistResponse,
 } from '@dealhunter/contracts';
 import App from './App.js';
 import {
@@ -23,6 +25,14 @@ import {
   getHistoricalLows,
   getPriceHistory,
   getStores,
+  getWishlist,
+  getWishlistIds,
+  login,
+  logout,
+  registerAccount,
+  addWishlistGame,
+  removeWishlistGame,
+  restoreSession,
   searchGames,
 } from './lib/api-client.js';
 
@@ -38,6 +48,14 @@ vi.mock('./lib/api-client.js', async (importOriginal) => {
     searchGames: vi.fn(),
     getGame: vi.fn(),
     getPriceHistory: vi.fn(),
+    restoreSession: vi.fn(),
+    login: vi.fn(),
+    registerAccount: vi.fn(),
+    logout: vi.fn(),
+    getWishlist: vi.fn(),
+    getWishlistIds: vi.fn(),
+    addWishlistGame: vi.fn(),
+    removeWishlistGame: vi.fn(),
   };
 });
 
@@ -64,6 +82,40 @@ const deal: DealResponse = {
 
 const steam: StoreResponse = { id: 'store-1', name: 'Steam', slug: 'steam' };
 const gog: StoreResponse = { id: 'store-2', name: 'GOG', slug: 'gog' };
+const session: AuthSessionResponse = {
+  user: {
+    id: '20da2e1d-c56e-4874-8e7c-f5d15d38d502',
+    email: 'player@example.com',
+    displayName: 'Player One',
+  },
+  accessToken: 'memory-only-test-token',
+};
+const wishlistResponse: WishlistResponse = {
+  data: [
+    {
+      gameId: deal.gameId,
+      gameSlug: deal.gameSlug,
+      gameTitle: deal.gameTitle,
+      addedAt: '2026-01-01T00:00:00.000Z',
+      bestListing: {
+        store: steam,
+        currentPrice: 9.99,
+        regularPrice: 19.99,
+        discountPercent: 50,
+        currency: 'USD',
+        isOnSale: true,
+        dealUrl: deal.dealUrl,
+      },
+    },
+  ],
+  pagination: {
+    page: 1,
+    pageSize: 20,
+    totalItems: 1,
+    totalPages: 1,
+    hasNextPage: false,
+  },
+};
 
 const gameDetail: GameDetailResponse = {
   data: {
@@ -164,13 +216,12 @@ function renderDashboard(entry = '/') {
       </MemoryRouter>
     </QueryClientProvider>,
   );
-  return { user };
+  return { user, queryClient };
 }
 
 async function logIn(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText('Email address'), 'player@example.com');
-  await user.type(screen.getByLabelText('Password'), 'secret1');
-  await user.click(screen.getAllByRole('button', { name: 'Log in' }).at(-1)!);
+  void user;
+  await waitFor(() => expect(screen.queryByText('Restoring your session…')).toBeNull());
 }
 
 beforeEach(() => {
@@ -180,6 +231,14 @@ beforeEach(() => {
   vi.mocked(getBestDeals).mockResolvedValue({ data: [] });
   vi.mocked(getFreeDeals).mockResolvedValue({ data: [] });
   vi.mocked(getHistoricalLows).mockResolvedValue({ data: [] });
+  vi.mocked(restoreSession).mockResolvedValue(session);
+  vi.mocked(login).mockResolvedValue(session);
+  vi.mocked(registerAccount).mockResolvedValue(session);
+  vi.mocked(logout).mockResolvedValue();
+  vi.mocked(getWishlist).mockResolvedValue(wishlistResponse);
+  vi.mocked(getWishlistIds).mockResolvedValue({ gameIds: [] });
+  vi.mocked(addWishlistGame).mockResolvedValue({ gameId: deal.gameId, added: true });
+  vi.mocked(removeWishlistGame).mockResolvedValue();
   vi.mocked(searchGames).mockResolvedValue(searchResponse);
   vi.mocked(getGame).mockResolvedValue(gameDetail);
   vi.mocked(getPriceHistory).mockResolvedValue(priceHistory);
@@ -267,6 +326,7 @@ describe('live deals dashboard', () => {
     expect((screen.getByRole('textbox', { name: 'Search deals' }) as HTMLInputElement).value).toBe(
       'Celeste',
     );
+    await screen.findByRole('option', { name: 'Steam' });
     expect((screen.getByRole('combobox', { name: 'Store' }) as HTMLSelectElement).value).toBe(
       'steam',
     );
@@ -414,5 +474,221 @@ describe('live deals dashboard', () => {
     expect(alertWithBestError).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Free games' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Celeste' })).toBeNull();
+  });
+});
+
+describe('real authentication and wishlist UI', () => {
+  it('keeps a neutral loading state until session restoration finishes', async () => {
+    let resolveRestore!: (value: AuthSessionResponse | null) => void;
+    vi.mocked(restoreSession).mockReturnValue(
+      new Promise((resolve) => {
+        resolveRestore = resolve;
+      }),
+    );
+    renderDashboard();
+    expect(screen.getByRole('status').textContent).toContain('Restoring your session');
+    expect(screen.queryByRole('link', { name: 'Log in' })).toBeNull();
+
+    resolveRestore(null);
+    expect(await screen.findByRole('heading', { name: 'Discover game deals' })).toBeTruthy();
+  });
+
+  it('restores a logged-in user and shows an anonymous dashboard after refresh failure', async () => {
+    renderDashboard();
+    expect(await screen.findByRole('heading', { name: 'Welcome back, Player One' })).toBeTruthy();
+    expect(restoreSession).toHaveBeenCalledTimes(1);
+
+    cleanup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    renderDashboard();
+    expect(await screen.findByRole('heading', { name: 'Discover game deals' })).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'Log in' })).toBeTruthy();
+  });
+
+  it('logs in successfully and shows a generic error for invalid credentials', async () => {
+    const user = userEvent.setup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    renderDashboard('/login');
+    await screen.findByLabelText('Email address');
+    await user.type(screen.getByLabelText('Email address'), 'player@example.com');
+    await user.type(screen.getByLabelText('Password'), 'incorrect-password-123');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back, Player One' })).toBeTruthy();
+    expect(login).toHaveBeenCalledWith({
+      email: 'player@example.com',
+      password: 'incorrect-password-123',
+    });
+
+    cleanup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    const { ApiError } = await import('./lib/api-client.js');
+    vi.mocked(login).mockRejectedValueOnce(
+      new ApiError('private detail', 401, 'INVALID_CREDENTIALS'),
+    );
+    renderDashboard('/login');
+    await screen.findByLabelText('Email address');
+    await user.type(screen.getByLabelText('Email address'), 'wrong@example.com');
+    await user.type(screen.getByLabelText('Password'), 'incorrect-password-123');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('Invalid email or password');
+    expect(screen.queryByText('private detail')).toBeNull();
+  });
+
+  it('registers a normalized account and authenticates the new user', async () => {
+    const user = userEvent.setup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    renderDashboard('/register');
+    await screen.findByLabelText('Display name');
+    await user.type(screen.getByLabelText('Display name'), '  Player One  ');
+    await user.type(screen.getByLabelText('Email address'), 'PLAYER@example.com');
+    await user.type(screen.getByLabelText('Password'), 'valid-registration-password');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+
+    expect(await screen.findByRole('heading', { name: 'Welcome back, Player One' })).toBeTruthy();
+    expect(registerAccount).toHaveBeenCalledWith({
+      displayName: 'Player One',
+      email: 'player@example.com',
+      password: 'valid-registration-password',
+    });
+  });
+
+  it('validates registration fields and displays a generic server conflict', async () => {
+    const user = userEvent.setup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    const { ApiError } = await import('./lib/api-client.js');
+    vi.mocked(registerAccount).mockRejectedValueOnce(
+      new ApiError('Unable to register with these details', 409, 'REGISTRATION_UNAVAILABLE'),
+    );
+    renderDashboard('/register');
+    await screen.findByLabelText('Display name');
+
+    await user.type(screen.getByLabelText('Display name'), '   ');
+    await user.type(screen.getByLabelText('Email address'), 'invalid');
+    await user.type(screen.getByLabelText('Password'), 'short');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    expect(await screen.findByText(/String must contain at least 12 character/)).toBeTruthy();
+    expect(screen.getByLabelText(/Display name/).getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText(/Email address/).getAttribute('aria-invalid')).toBe('true');
+    expect(registerAccount).not.toHaveBeenCalled();
+
+    await user.clear(screen.getByLabelText(/Display name/));
+    await user.type(screen.getByLabelText(/Display name/), 'Player');
+    await user.clear(screen.getByLabelText(/Email address/));
+    await user.type(screen.getByLabelText(/Email address/), 'player@example.com');
+    await user.clear(screen.getByLabelText(/Password/));
+    await user.type(screen.getByLabelText(/Password/), 'valid-registration-password');
+    await user.click(screen.getByRole('button', { name: 'Create account' }));
+    expect((await screen.findByRole('alert')).textContent).toContain(
+      'Unable to register with these details.',
+    );
+  });
+
+  it('redirects protected wishlist access to login and returns after successful login', async () => {
+    const user = userEvent.setup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    renderDashboard('/wishlist?page=2');
+    await screen.findByLabelText('Email address');
+
+    await user.type(screen.getByLabelText('Email address'), 'player@example.com');
+    await user.type(screen.getByLabelText('Password'), 'valid-login-password');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+    expect(await screen.findByRole('heading', { name: 'My wishlist' })).toBeTruthy();
+    expect(getWishlist).toHaveBeenCalledWith(2, 20, expect.anything());
+  });
+
+  it('optimistically toggles a heart and rolls it back when the API fails', async () => {
+    const user = userEvent.setup();
+    let rejectAdd!: (error: Error) => void;
+    vi.mocked(addWishlistGame).mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectAdd = reject;
+      }),
+    );
+    const { queryClient } = renderDashboard();
+    await screen.findByRole('heading', { name: 'Celeste' });
+    await waitFor(() =>
+      expect(queryClient.getQueryData(['wishlist', 'ids'])).toEqual({ gameIds: [] }),
+    );
+    const heart = await screen.findByRole('button', { name: 'Add to wishlist' });
+    await user.click(heart);
+    await waitFor(() => expect(heart.getAttribute('aria-pressed')).toBe('true'));
+    rejectAdd(new Error('request failed'));
+    expect((await screen.findByRole('alert')).textContent).toContain('Wishlist update failed');
+    await waitFor(() => expect(heart.getAttribute('aria-pressed')).toBe('false'));
+  });
+
+  it('sends a logged-out user to login when a wishlist heart is clicked', async () => {
+    const user = userEvent.setup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    renderDashboard();
+    await screen.findByRole('heading', { name: 'Celeste' });
+    await user.click(await screen.findByRole('button', { name: 'Add to wishlist' }));
+
+    expect(await screen.findByLabelText('Email address')).toBeTruthy();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('shows wishlist entries and removes them', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getWishlistIds).mockResolvedValueOnce({ gameIds: [deal.gameId] });
+    vi.mocked(removeWishlistGame).mockImplementationOnce(async () => {
+      vi.mocked(getWishlist).mockResolvedValueOnce({
+        ...wishlistResponse,
+        data: [],
+        pagination: { ...wishlistResponse.pagination, totalItems: 0, totalPages: 0 },
+      });
+    });
+    renderDashboard('/wishlist');
+    expect(await screen.findByRole('heading', { name: 'Celeste' })).toBeTruthy();
+    await screen.findByRole('button', { name: /Remove from wishlist/ });
+    expect(screen.getByText('$9.99')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: /Remove from wishlist/ }));
+    expect(removeWishlistGame).toHaveBeenCalledWith(deal.gameId);
+    expect(await screen.findByText('Your wishlist is empty.')).toBeTruthy();
+  });
+
+  it('shows wishlist loading, empty, and retryable error states', async () => {
+    let resolveWishlist!: (value: WishlistResponse) => void;
+    vi.mocked(getWishlist).mockReturnValue(
+      new Promise((resolve) => {
+        resolveWishlist = resolve;
+      }),
+    );
+    renderDashboard('/wishlist');
+    await screen.findByRole('heading', { name: 'My wishlist' });
+    expect(screen.getByRole('status').textContent).toContain('Loading your wishlist');
+    resolveWishlist({
+      ...wishlistResponse,
+      data: [],
+      pagination: { ...wishlistResponse.pagination, totalItems: 0, totalPages: 0 },
+    });
+    expect(await screen.findByText('Your wishlist is empty.')).toBeTruthy();
+
+    cleanup();
+    vi.mocked(getWishlist)
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce(wishlistResponse);
+    const user = userEvent.setup();
+    renderDashboard('/wishlist');
+    expect((await screen.findByRole('alert')).textContent).toContain('could not be loaded');
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('heading', { name: 'Celeste' })).toBeTruthy();
+  });
+
+  it('clears the access session and all cached user data on logout', async () => {
+    const user = userEvent.setup();
+    const rendered = renderDashboard();
+    await screen.findByRole('heading', { name: 'Celeste' });
+    await waitFor(() =>
+      expect(rendered.queryClient.getQueryData(['wishlist', 'ids'])).toEqual({ gameIds: [] }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Log out' }));
+
+    await waitFor(() =>
+      expect(rendered.queryClient.getQueryData(['wishlist', 'ids'])).toBeUndefined(),
+    );
+    expect(await screen.findByRole('link', { name: 'Log in' })).toBeTruthy();
+    expect(logout).toHaveBeenCalledTimes(1);
   });
 });

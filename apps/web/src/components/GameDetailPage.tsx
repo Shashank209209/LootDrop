@@ -2,7 +2,9 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { getGame, getPriceHistory, ApiError } from '../lib/api-client.js';
+import { AccountMenu } from './AccountMenu.js';
 import { PriceHistoryChart } from './PriceHistoryChart.js';
+import { WishlistButton } from './WishlistButton.js';
 
 const historyRanges = ['30d', '90d', '1y', 'all'] as const;
 type HistoryRange = (typeof historyRanges)[number];
@@ -118,9 +120,12 @@ export function GameDetailPage() {
   return (
     <main className="page-shell">
       <div className="page-inner game-detail">
-        <Link className="back-link" to={backTarget}>
-          ← Back to deals
-        </Link>
+        <header className="topbar">
+          <Link className="back-link" to={backTarget}>
+            ← Back to deals
+          </Link>
+          <AccountMenu />
+        </header>
         <header className="game-detail-header">
           <div className="deal-cover game-detail-cover" aria-hidden="true">
             <span>{game.game.title.slice(0, 1) || '?'}</span>
@@ -137,6 +142,7 @@ export function GameDetailPage() {
                 ? ` · Highest recorded ${formatCurrency(game.summary.highestRecordedPrice, summaryCurrency)}`
                 : ''}
             </p>
+            <WishlistButton gameId={game.game.id} gameTitle={game.game.title} />
           </div>
         </header>
 

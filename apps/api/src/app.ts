@@ -11,15 +11,30 @@ import { createDealsRouter } from './pricing/deals-router.js';
 import { createGamesRouter } from './games/games-router.js';
 import { createCuratedDealsRouter } from './pricing/curated-deals-router.js';
 import { createOpenApiDocument } from './openapi.js';
+import { createAuthRouter } from './auth/auth-router.js';
+import { createWishlistRouter } from './wishlist/wishlist-router.js';
+import { sendApiError } from './http/api-error.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const app = express();
 
 app.disable('x-powered-by');
 app.use(helmet());
-app.use(cors({ origin: env.WEB_ORIGIN }));
+app.use(cors({ origin: env.WEB_ORIGIN, credentials: true }));
 app.use(express.json({ limit: '1mb' }));
-app.use(pinoHttp({ logger }));
+app.use(
+  pinoHttp({
+    logger,
+    serializers: {
+      req: (request) => ({
+        id: request.id,
+        method: request.method,
+        url: request.url,
+        remoteAddress: request.remoteAddress,
+      }),
+    },
+  }),
+);
 app.use(
   '/api',
   rateLimit({
@@ -48,6 +63,18 @@ app.use(
 app.use('/api/v1', createDealsRouter(prisma));
 app.use('/api/v1', createCuratedDealsRouter(prisma));
 app.use('/api/v1', createGamesRouter(prisma));
+app.use(
+  '/api/v1/auth',
+  createAuthRouter(prisma, {
+    accessSecret: env.JWT_ACCESS_SECRET,
+    issuer: env.JWT_ISSUER,
+    cookieSecure: env.AUTH_COOKIE_SECURE,
+    cookieSameSite: env.AUTH_COOKIE_SAME_SITE,
+    rateLimitWindowMs: env.AUTH_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
+    rateLimitMax: env.AUTH_RATE_LIMIT_MAX,
+  }),
+);
+app.use('/api/v1/wishlist', createWishlistRouter(prisma, env.JWT_ACCESS_SECRET, env.JWT_ISSUER));
 
 app.use((_request, response) => {
   response.status(404).json({
@@ -58,6 +85,11 @@ app.use((_request, response) => {
 const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
   if (response.headersSent) {
     next(error);
+    return;
+  }
+
+  if (error instanceof SyntaxError && 'body' in error) {
+    sendApiError(response, 400, 'INVALID_REQUEST', 'Request body must be valid JSON');
     return;
   }
 
