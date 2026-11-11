@@ -126,6 +126,7 @@ describe('runCheapSharkDealSync', () => {
       pagesFetched: 2,
       itemsProcessed: 2,
       itemsFailed: 0,
+      checkedListingIds: ['listing-uuid'],
     });
     expect(adapter.fetchDeals).toHaveBeenNthCalledWith(
       1,
@@ -185,6 +186,7 @@ describe('runCheapSharkDealSync', () => {
       pagesFetched: 1,
       itemsProcessed: 0,
       itemsFailed: 3,
+      checkedListingIds: [],
     });
     expect(database.scrapeRun.update).toHaveBeenCalledWith(
       expect.objectContaining({

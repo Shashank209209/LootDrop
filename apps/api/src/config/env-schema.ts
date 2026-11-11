@@ -29,6 +29,9 @@ export const envSchema = z
     CHEAPSHARK_USER_AGENT: z.string().min(8).default('DealHunter/0.1.0'),
     CHEAPSHARK_MAX_PAGES: z.coerce.number().int().min(1).max(10).default(2),
     DEAL_SYNC_INTERVAL_MINUTES: dealSyncIntervalSchema,
+    EMAIL_PROVIDER: z.enum(['log', 'resend']).default('log'),
+    RESEND_API_KEY: z.string().optional(),
+    EMAIL_FROM: z.string().email().optional(),
   })
   .superRefine((config, context) => {
     if (config.AUTH_COOKIE_SAME_SITE === 'none' && !config.AUTH_COOKIE_SECURE) {
@@ -37,5 +40,21 @@ export const envSchema = z
         path: ['AUTH_COOKIE_SECURE'],
         message: 'AUTH_COOKIE_SECURE must be true when AUTH_COOKIE_SAME_SITE is none',
       });
+    }
+    if (config.EMAIL_PROVIDER === 'resend') {
+      if (!config.RESEND_API_KEY) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['RESEND_API_KEY'],
+          message: 'RESEND_API_KEY is required when EMAIL_PROVIDER is resend',
+        });
+      }
+      if (!config.EMAIL_FROM) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['EMAIL_FROM'],
+          message: 'EMAIL_FROM is required when EMAIL_PROVIDER is resend',
+        });
+      }
     }
   });

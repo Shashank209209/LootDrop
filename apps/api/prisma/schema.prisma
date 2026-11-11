@@ -222,6 +222,7 @@ model PriceAlert {
   alertType             AlertType      @map("alert_type")
   isActive              Boolean        @default(true) @map("is_active")
   lastTriggeredAt       DateTime?      @map("last_triggered_at") @db.Timestamptz(6)
+  lastConditionMet      Boolean?       @map("last_condition_met")
   createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   user                  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   game                  Game           @relation(fields: [gameId], references: [id], onDelete: Cascade)

@@ -13,6 +13,8 @@ import { createCuratedDealsRouter } from './pricing/curated-deals-router.js';
 import { createOpenApiDocument } from './openapi.js';
 import { createAuthRouter } from './auth/auth-router.js';
 import { createWishlistRouter } from './wishlist/wishlist-router.js';
+import { createAlertsRouter } from './alerts/alerts-router.js';
+import { createNotificationsRouter } from './alerts/notifications-router.js';
 import { sendApiError } from './http/api-error.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
@@ -75,6 +77,8 @@ app.use(
   }),
 );
 app.use('/api/v1/wishlist', createWishlistRouter(prisma, env.JWT_ACCESS_SECRET, env.JWT_ISSUER));
+app.use('/api/v1', createAlertsRouter(prisma, env.JWT_ACCESS_SECRET, env.JWT_ISSUER));
+app.use('/api/v1', createNotificationsRouter(prisma, env.JWT_ACCESS_SECRET, env.JWT_ISSUER));
 
 app.use((_request, response) => {
   response.status(404).json({

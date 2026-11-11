@@ -66,8 +66,8 @@ async function findOrCreateGame(
 async function persistDeal(
   database: Database,
   deal: ReturnType<typeof normalizeCheapSharkDeal>,
-): Promise<void> {
-  await database.$transaction(async (transaction) => {
+): Promise<string> {
+  return database.$transaction(async (transaction) => {
     const store = await transaction.store.findUnique({
       where: { cheapsharkStoreId: deal.sourceStoreId },
     });
@@ -120,6 +120,7 @@ async function persistDeal(
     });
 
     await capturePriceSnapshotIfChanged(transaction, listing.id, previousListing, nextPrice);
+    return listing.id;
   });
 }
 
@@ -128,6 +129,7 @@ export interface SyncDealsResult {
   pagesFetched: number;
   itemsProcessed: number;
   itemsFailed: number;
+  checkedListingIds: string[];
 }
 
 export async function runCheapSharkDealSync(
@@ -151,6 +153,7 @@ export async function runCheapSharkDealSync(
   let pagesFetched = 0;
   let itemsProcessed = 0;
   let itemsFailed = 0;
+  const checkedListingIds = new Set<string>();
 
   try {
     const storeBatch = await adapter.fetchStores();
@@ -215,7 +218,7 @@ export async function runCheapSharkDealSync(
       for (const rawDeal of batch.items) {
         try {
           const deal = normalizeCheapSharkDeal(rawDeal);
-          await persistDeal(database, deal);
+          checkedListingIds.add(await persistDeal(database, deal));
           itemsProcessed += 1;
         } catch (error) {
           itemsFailed += 1;
@@ -242,7 +245,13 @@ export async function runCheapSharkDealSync(
       { scrapeRunId: scrapeRun.id, pagesFetched, itemsProcessed, itemsFailed, status },
       'CheapShark deal sync finished',
     );
-    return { scrapeRunId: scrapeRun.id, pagesFetched, itemsProcessed, itemsFailed };
+    return {
+      scrapeRunId: scrapeRun.id,
+      pagesFetched,
+      itemsProcessed,
+      itemsFailed,
+      checkedListingIds: [...checkedListingIds],
+    };
   } catch (error) {
     itemsFailed += 1;
     logger.error(
