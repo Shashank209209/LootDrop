@@ -73,6 +73,10 @@ export const updateAlertRequestSchema = z
   })
   .strict()
   .refine(
+    (input) => input.targetPrice === undefined || input.targetDiscountPercent === undefined,
+    'Only one target field may be updated at a time',
+  )
+  .refine(
     (input) =>
       input.isActive !== undefined ||
       input.targetPrice !== undefined ||

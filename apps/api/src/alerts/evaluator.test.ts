@@ -93,17 +93,20 @@ describe('evaluateAlerts', () => {
       targetPrice: null,
       targetDiscountPercent: null,
     };
-    const points = [
-      { listingId: 'listing-1', price: 12, currency: 'USD', capturedAt: now },
-      { listingId: 'listing-1', price: 9, currency: 'USD', capturedAt: now },
-    ];
-    expect(evaluate(historicalLowAlert, [listing()], points.slice(0, 1)).fired).toHaveLength(0);
+    const points = [{ listingId: 'listing-1', currency: 'USD', count: 2, lowestPrice: 9 }];
+    expect(
+      evaluate(
+        historicalLowAlert,
+        [listing()],
+        [{ listingId: 'listing-1', currency: 'USD', count: 1, lowestPrice: 9 }],
+      ).fired,
+    ).toHaveLength(0);
     expect(evaluate(historicalLowAlert, [listing()], points).fired).toHaveLength(1);
     expect(
       evaluate(
         historicalLowAlert,
         [listing()],
-        [...points, { listingId: 'other', price: 1, currency: 'EUR', capturedAt: now }],
+        [...points, { listingId: 'other', currency: 'EUR', count: 2, lowestPrice: 1 }],
       ).fired,
     ).toHaveLength(1);
   });

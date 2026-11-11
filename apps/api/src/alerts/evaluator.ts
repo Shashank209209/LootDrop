@@ -27,9 +27,9 @@ export interface ListingToEvaluate {
 
 export interface SnapshotToEvaluate {
   listingId: string;
-  price: number;
   currency: string;
-  capturedAt: Date;
+  count: number;
+  lowestPrice: number;
 }
 
 export interface FiredAlert {
@@ -76,8 +76,9 @@ function conditionIsMet(
       const listingSnapshots = snapshots.filter(
         (snapshot) => snapshot.listingId === listing.id && snapshot.currency === alert.currency,
       );
-      if (listingSnapshots.length < 2) return false;
-      const lowestPrice = Math.min(...listingSnapshots.map((snapshot) => snapshot.price));
+      const snapshotCount = listingSnapshots.reduce((count, snapshot) => count + snapshot.count, 0);
+      if (snapshotCount < 2) return false;
+      const lowestPrice = Math.min(...listingSnapshots.map((snapshot) => snapshot.lowestPrice));
       return listing.currentPrice <= lowestPrice;
     }
   }
@@ -87,11 +88,13 @@ export function evaluateAlerts(input: {
   alerts: readonly AlertToEvaluate[];
   listings: readonly ListingToEvaluate[];
   snapshots: readonly SnapshotToEvaluate[];
+  changedListingIds?: readonly string[];
   now: Date;
 }): AlertEvaluationResult {
   const fired: FiredAlert[] = [];
   const stateUpdates: AlertStateUpdate[] = [];
   let evaluated = 0;
+  const changedListingIds = input.changedListingIds ? new Set(input.changedListingIds) : null;
 
   for (const alert of input.alerts) {
     if (!alert.isActive) continue;
@@ -107,7 +110,7 @@ export function evaluateAlerts(input: {
         (left, right) => left.currentPrice - right.currentPrice || left.id.localeCompare(right.id),
       );
     const listing = candidates[0];
-    if (!listing) continue;
+    if (!listing || (changedListingIds && !changedListingIds.has(listing.id))) continue;
 
     evaluated += 1;
     const conditionMet = conditionIsMet(alert, listing, input.snapshots);

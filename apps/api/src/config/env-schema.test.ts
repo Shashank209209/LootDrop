@@ -39,6 +39,32 @@ describe('deal sync interval', () => {
         }).success,
       ).toBe(false);
     });
+
+    it('defaults to the credential-free log email provider', () => {
+      const parsed = envSchema.parse({
+        ...validEnvironment,
+        JWT_ACCESS_SECRET: 'a'.repeat(32),
+      });
+      expect(parsed.EMAIL_PROVIDER).toBe('log');
+      expect(parsed.RESEND_API_KEY).toBeUndefined();
+      expect(parsed.EMAIL_FROM).toBeUndefined();
+    });
+
+    it('requires Resend credentials only when Resend is selected', () => {
+      const base = {
+        ...validEnvironment,
+        JWT_ACCESS_SECRET: 'a'.repeat(32),
+        EMAIL_PROVIDER: 'resend',
+      };
+      expect(envSchema.safeParse(base).success).toBe(false);
+      expect(
+        envSchema.safeParse({
+          ...base,
+          RESEND_API_KEY: 'test-key',
+          EMAIL_FROM: 'alerts@example.invalid',
+        }).success,
+      ).toBe(true);
+    });
   });
 
   it('rejects intervals outside 30 to 60 minutes', () => {

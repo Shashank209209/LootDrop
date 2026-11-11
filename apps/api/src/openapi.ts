@@ -4,6 +4,9 @@ import {
   OpenApiGeneratorV3,
 } from '@asteasolutions/zod-to-openapi';
 import {
+  alertResponseSchema,
+  alertsQuerySchema,
+  alertsResponseSchema,
   bestDealsQuerySchema,
   curatedDealsResponseSchema,
   dealsQuerySchema,
@@ -18,11 +21,16 @@ import {
   historicalLowsResponseSchema,
   loginRequestSchema,
   meResponseSchema,
+  notificationsQuerySchema,
+  notificationsResponseSchema,
+  unreadCountResponseSchema,
   priceHistoryQuerySchema,
   priceHistoryResponseSchema,
   refreshResponseSchema,
   registerRequestSchema,
   storesResponseSchema,
+  createAlertRequestSchema,
+  updateAlertRequestSchema,
   wishlistAddRequestSchema,
   wishlistIdsResponseSchema,
   wishlistQuerySchema,
@@ -197,6 +205,108 @@ registry.registerPath({
   security: [{ bearerAuth: [] }],
   responses: {
     200: response(meResponseSchema, 'Authenticated user'),
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/alerts',
+  summary: 'List the current user alerts',
+  security: [{ bearerAuth: [] }],
+  request: { query: alertsQuerySchema },
+  responses: {
+    200: response(alertsResponseSchema, 'Paginated alerts with current prices'),
+    400: response(errorSchema, 'Invalid pagination'),
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'post',
+  path: '/api/v1/alerts',
+  summary: 'Create a price alert',
+  security: [{ bearerAuth: [] }],
+  request: {
+    body: { content: { 'application/json': { schema: createAlertRequestSchema } } },
+  },
+  responses: {
+    201: response(alertResponseSchema, 'Created alert with current price'),
+    400: response(errorSchema, 'Invalid alert'),
+    401: response(errorSchema, 'Authentication required'),
+    404: response(errorSchema, 'Game or store not found'),
+    409: response(errorSchema, 'Duplicate alert or alert limit reached'),
+  },
+});
+registry.registerPath({
+  method: 'patch',
+  path: '/api/v1/alerts/{alertId}',
+  summary: 'Update or pause an alert',
+  security: [{ bearerAuth: [] }],
+  request: {
+    params: z.object({ alertId: z.string().uuid() }),
+    body: { content: { 'application/json': { schema: updateAlertRequestSchema } } },
+  },
+  responses: {
+    200: response(alertResponseSchema, 'Updated alert'),
+    400: response(errorSchema, 'Invalid alert update'),
+    401: response(errorSchema, 'Authentication required'),
+    404: response(errorSchema, 'Alert not found'),
+    409: response(errorSchema, 'Duplicate alert'),
+  },
+});
+registry.registerPath({
+  method: 'delete',
+  path: '/api/v1/alerts/{alertId}',
+  summary: 'Delete an alert',
+  security: [{ bearerAuth: [] }],
+  request: { params: z.object({ alertId: z.string().uuid() }) },
+  responses: {
+    204: { description: 'Alert deleted' },
+    400: response(errorSchema, 'Invalid alert ID'),
+    401: response(errorSchema, 'Authentication required'),
+    404: response(errorSchema, 'Alert not found'),
+  },
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/notifications',
+  summary: 'List the current user notifications',
+  security: [{ bearerAuth: [] }],
+  request: { query: notificationsQuerySchema },
+  responses: {
+    200: response(notificationsResponseSchema, 'Paginated notifications and unread count'),
+    400: response(errorSchema, 'Invalid pagination'),
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/notifications/unread-count',
+  summary: 'Get the current user unread notification count',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: response(unreadCountResponseSchema, 'Unread notification count'),
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'patch',
+  path: '/api/v1/notifications/{notificationId}/read',
+  summary: 'Mark one notification as read',
+  security: [{ bearerAuth: [] }],
+  request: { params: z.object({ notificationId: z.string().uuid() }) },
+  responses: {
+    200: { description: 'Notification was marked read or was already read' },
+    401: response(errorSchema, 'Authentication required'),
+    404: response(errorSchema, 'Notification not found'),
+  },
+});
+registry.registerPath({
+  method: 'patch',
+  path: '/api/v1/notifications/read-all',
+  summary: 'Mark all current user notifications as read',
+  security: [{ bearerAuth: [] }],
+  responses: {
+    200: { description: 'Notifications marked read' },
     401: response(errorSchema, 'Authentication required'),
   },
 });
