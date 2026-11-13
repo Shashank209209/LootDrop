@@ -1,6 +1,9 @@
 import type {
   AuthSessionResponse,
   AuthUser,
+  AlertResponse,
+  AlertsResponse,
+  CreateAlertRequest,
   CuratedDealsResponse,
   DealResponse,
   DealsQuery,
@@ -10,6 +13,8 @@ import type {
   HistoricalLowsResponse,
   LoginRequest,
   MeResponse,
+  NotificationResponse,
+  NotificationsResponse,
   PriceHistoryQuery,
   PriceHistoryResponse,
   RegisterRequest,
@@ -280,7 +285,68 @@ export async function removeWishlistGame(gameId: string): Promise<void> {
   await authenticatedJson<void>(`/wishlist/${encodeURIComponent(gameId)}`, { method: 'DELETE' });
 }
 
+export async function getAlerts(
+  page = 1,
+  pageSize = 20,
+  signal?: AbortSignal,
+): Promise<AlertsResponse> {
+  const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) });
+  return authenticatedJson(`/alerts?${params}`, signal ? { signal } : {});
+}
+
+export async function createAlert(input: CreateAlertRequest): Promise<AlertResponse> {
+  return authenticatedJson('/alerts', jsonBody(input));
+}
+
+export async function updateAlert(
+  alertId: string,
+  input: { isActive?: boolean; targetPrice?: number; targetDiscountPercent?: number },
+): Promise<AlertResponse> {
+  return authenticatedJson(`/alerts/${encodeURIComponent(alertId)}`, {
+    ...jsonBody(input),
+    method: 'PATCH',
+  });
+}
+
+export async function deleteAlert(alertId: string): Promise<void> {
+  await authenticatedJson<void>(`/alerts/${encodeURIComponent(alertId)}`, { method: 'DELETE' });
+}
+
+export async function getNotifications(
+  page = 1,
+  pageSize = 20,
+  unreadOnly = false,
+  signal?: AbortSignal,
+): Promise<NotificationsResponse> {
+  const params = new URLSearchParams({
+    page: String(page),
+    pageSize: String(pageSize),
+    unreadOnly: String(unreadOnly),
+  });
+  return authenticatedJson(`/notifications?${params}`, signal ? { signal } : {});
+}
+
+export async function getUnreadNotificationCount(signal?: AbortSignal): Promise<number> {
+  const result = await authenticatedJson<{ unreadCount: number }>(
+    '/notifications/unread-count',
+    signal ? { signal } : {},
+  );
+  return result.unreadCount;
+}
+
+export async function markNotificationRead(notificationId: string): Promise<void> {
+  await authenticatedJson(`/notifications/${encodeURIComponent(notificationId)}/read`, {
+    method: 'PATCH',
+  });
+}
+
+export async function markAllNotificationsRead(): Promise<{ updated: number }> {
+  return authenticatedJson('/notifications/read-all', { method: 'PATCH' });
+}
+
 export type {
+  AlertResponse,
+  AlertsResponse,
   AuthSessionResponse,
   AuthUser,
   CuratedDealsResponse,
@@ -289,6 +355,8 @@ export type {
   GameDetailResponse,
   GameSearchResponse,
   HistoricalLowsResponse,
+  NotificationResponse,
+  NotificationsResponse,
   PriceHistoryResponse,
   StoreResponse,
   WishlistEntry,

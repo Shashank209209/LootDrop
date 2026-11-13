@@ -10,6 +10,8 @@ import { DealCard } from './components/DealCard.js';
 import { GameAutocomplete } from './components/GameAutocomplete.js';
 import { GameDetailPage } from './components/GameDetailPage.js';
 import { WishlistPage } from './components/WishlistPage.js';
+import { AlertsPage } from './components/AlertsPage.js';
+import { NotificationsPage } from './components/NotificationsPage.js';
 import {
   getBestDeals,
   getDeals,
@@ -383,6 +385,36 @@ function ProtectedWishlist() {
   return <WishlistPage />;
 }
 
+function ProtectedAlerts() {
+  const { state } = useAuth();
+  const location = useLocation();
+  if (state.status !== 'authenticated') {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
+  return <AlertsPage />;
+}
+
+function ProtectedNotifications() {
+  const { state } = useAuth();
+  const location = useLocation();
+  if (state.status !== 'authenticated') {
+    return (
+      <Navigate
+        to="/login"
+        replace
+        state={{ returnTo: `${location.pathname}${location.search}${location.hash}` }}
+      />
+    );
+  }
+  return <NotificationsPage />;
+}
+
 function AppRoutes() {
   const { state } = useAuth();
   if (state.status === 'loading') {
@@ -400,6 +432,8 @@ function AppRoutes() {
       <Route path="/" element={<Dashboard />} />
       <Route path="/games/:slug" element={<GameDetailPage />} />
       <Route path="/wishlist" element={<ProtectedWishlist />} />
+      <Route path="/alerts" element={<ProtectedAlerts />} />
+      <Route path="/notifications" element={<ProtectedNotifications />} />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route

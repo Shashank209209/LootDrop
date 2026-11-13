@@ -217,8 +217,8 @@ export async function runAlertEvaluation(
           },
         });
 
-        await transaction.$queryRaw(
-          Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${record.userId}), hashtext('lootdrop-alert-email-cap'))`,
+        await transaction.$queryRaw<{ locked: boolean }[]>(
+          Prisma.sql`SELECT TRUE AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${record.userId}), hashtext('lootdrop-alert-email-cap'))) AS email_lock`,
         );
         const emailCount = await transaction.notification.count({
           where: {

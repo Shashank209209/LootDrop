@@ -1,17 +1,21 @@
 // @vitest-environment jsdom
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AuthSessionResponse,
+  AlertResponse,
+  AlertsResponse,
   DealResponse,
   DealsResponse,
   GameDetailResponse,
   GameSearchResponse,
   HistoricalLowsResponse,
+  NotificationResponse,
+  NotificationsResponse,
   PriceHistoryResponse,
   StoreResponse,
   WishlistResponse,
@@ -19,16 +23,24 @@ import type {
 import App from './App.js';
 import {
   getBestDeals,
+  getAlerts,
   getDeals,
   getFreeDeals,
   getGame,
   getHistoricalLows,
+  getNotifications,
+  getUnreadNotificationCount,
   getPriceHistory,
   getStores,
   getWishlist,
   getWishlistIds,
   login,
   logout,
+  createAlert,
+  deleteAlert,
+  updateAlert,
+  markAllNotificationsRead,
+  markNotificationRead,
   registerAccount,
   addWishlistGame,
   removeWishlistGame,
@@ -43,8 +55,11 @@ vi.mock('./lib/api-client.js', async (importOriginal) => {
     getDeals: vi.fn(),
     getStores: vi.fn(),
     getBestDeals: vi.fn(),
+    getAlerts: vi.fn(),
     getFreeDeals: vi.fn(),
     getHistoricalLows: vi.fn(),
+    getNotifications: vi.fn(),
+    getUnreadNotificationCount: vi.fn(),
     searchGames: vi.fn(),
     getGame: vi.fn(),
     getPriceHistory: vi.fn(),
@@ -52,6 +67,11 @@ vi.mock('./lib/api-client.js', async (importOriginal) => {
     login: vi.fn(),
     registerAccount: vi.fn(),
     logout: vi.fn(),
+    createAlert: vi.fn(),
+    deleteAlert: vi.fn(),
+    updateAlert: vi.fn(),
+    markAllNotificationsRead: vi.fn(),
+    markNotificationRead: vi.fn(),
     getWishlist: vi.fn(),
     getWishlistIds: vi.fn(),
     addWishlistGame: vi.fn(),
@@ -67,7 +87,7 @@ globalThis.ResizeObserver = class {
 
 const deal: DealResponse = {
   id: 'listing-1',
-  gameId: 'game-1',
+  gameId: '20da2e1d-c56e-4874-8e7c-f5d15d38d502',
   gameTitle: 'Celeste',
   gameSlug: 'celeste',
   store: { id: 'store-1', name: 'Steam', slug: 'steam' },
@@ -117,9 +137,53 @@ const wishlistResponse: WishlistResponse = {
   },
 };
 
+const alertRecord: AlertResponse = {
+  id: 'alert-1',
+  game: { id: '20da2e1d-c56e-4874-8e7c-f5d15d38d502', slug: 'celeste', title: 'Celeste' },
+  store: steam,
+  alertType: 'PRICE_BELOW',
+  targetPrice: 3.99,
+  targetDiscountPercent: null,
+  currency: 'USD',
+  isActive: true,
+  lastTriggeredAt: null,
+  createdAt: '2026-01-01T00:00:00.000Z',
+  current: {
+    currentPrice: 4.99,
+    regularPrice: 19.99,
+    discountPercent: 75,
+    currency: 'USD',
+    store: steam,
+  },
+};
+
+const alertsResponse: AlertsResponse = {
+  data: [alertRecord],
+  pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false },
+};
+
+const notificationRecord: NotificationResponse = {
+  id: 'notification-1',
+  type: 'IN_APP',
+  status: 'SENT',
+  message: 'Celeste dropped to $4.99 at Steam.',
+  priceAtTrigger: 4.99,
+  currency: 'USD',
+  readAt: null,
+  createdAt: '2026-01-02T00:00:00.000Z',
+  game: { slug: 'celeste', title: 'Celeste' },
+  store: { name: 'Steam' },
+};
+
+const notificationsResponse: NotificationsResponse = {
+  data: [notificationRecord],
+  pagination: { page: 1, pageSize: 20, totalItems: 1, totalPages: 1, hasNextPage: false },
+  unreadCount: 1,
+};
+
 const gameDetail: GameDetailResponse = {
   data: {
-    game: { id: 'game-1', slug: 'celeste', title: 'Celeste' },
+    game: { id: '20da2e1d-c56e-4874-8e7c-f5d15d38d502', slug: 'celeste', title: 'Celeste' },
     listings: [
       {
         id: 'listing-steam',
@@ -156,7 +220,7 @@ const gameDetail: GameDetailResponse = {
 const searchResponse: GameSearchResponse = {
   data: [
     {
-      id: 'game-1',
+      id: '20da2e1d-c56e-4874-8e7c-f5d15d38d502',
       slug: 'celeste',
       title: 'Celeste',
       bestPrice: 4.99,
@@ -227,10 +291,13 @@ async function logIn(user: ReturnType<typeof userEvent.setup>) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(getDeals).mockResolvedValue(dealsResponse());
+  vi.mocked(getAlerts).mockResolvedValue(alertsResponse);
   vi.mocked(getStores).mockResolvedValue({ data: [steam] });
   vi.mocked(getBestDeals).mockResolvedValue({ data: [] });
   vi.mocked(getFreeDeals).mockResolvedValue({ data: [] });
   vi.mocked(getHistoricalLows).mockResolvedValue({ data: [] });
+  vi.mocked(getNotifications).mockResolvedValue(notificationsResponse);
+  vi.mocked(getUnreadNotificationCount).mockResolvedValue(0);
   vi.mocked(restoreSession).mockResolvedValue(session);
   vi.mocked(login).mockResolvedValue(session);
   vi.mocked(registerAccount).mockResolvedValue(session);
@@ -242,6 +309,11 @@ beforeEach(() => {
   vi.mocked(searchGames).mockResolvedValue(searchResponse);
   vi.mocked(getGame).mockResolvedValue(gameDetail);
   vi.mocked(getPriceHistory).mockResolvedValue(priceHistory);
+  vi.mocked(createAlert).mockResolvedValue(alertRecord);
+  vi.mocked(updateAlert).mockResolvedValue(alertRecord);
+  vi.mocked(deleteAlert).mockResolvedValue();
+  vi.mocked(markAllNotificationsRead).mockResolvedValue({ updated: 1 });
+  vi.mocked(markNotificationRead).mockResolvedValue();
 });
 
 afterEach(() => cleanup());
@@ -478,6 +550,172 @@ describe('live deals dashboard', () => {
 });
 
 describe('real authentication and wishlist UI', () => {
+  it('shows alert type fields, validates a target, submits successfully, and restores focus on Escape', async () => {
+    const user = userEvent.setup();
+    const { queryClient } = renderDashboard('/games/celeste');
+    await screen.findByRole('heading', { name: 'Celeste' });
+    const trigger = screen.getByRole('button', { name: 'Set alert' });
+    await user.click(trigger);
+    const dialog = await screen.findByRole('dialog', { name: 'Celeste' });
+    expect(screen.getByLabelText('Target price (USD)')).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Set alert' }));
+    expect(await screen.findByText(/Enter a price greater than zero/)).toBeTruthy();
+
+    await user.click(screen.getByRole('radio', { name: 'Discount reaches' }));
+    expect(screen.getByLabelText('Target discount (%)')).toBeTruthy();
+    expect(screen.queryByLabelText('Target price (USD)')).toBeNull();
+    await user.click(screen.getByRole('radio', { name: 'Any sale starts' }));
+    expect(screen.queryByLabelText('Target discount (%)')).toBeNull();
+    await user.click(screen.getByRole('radio', { name: 'New all-time low' }));
+    await user.click(screen.getByRole('radio', { name: 'Price drops below' }));
+    await user.type(screen.getByLabelText('Target price (USD)'), '5.00');
+    expect(screen.getByText(/already met at the current price/)).toBeTruthy();
+    await user.click(within(dialog).getByRole('button', { name: 'Set alert' }));
+
+    await waitFor(() =>
+      expect(createAlert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          gameId: '20da2e1d-c56e-4874-8e7c-f5d15d38d502',
+          alertType: 'PRICE_BELOW',
+          targetPrice: 5,
+        }),
+        expect.anything(),
+      ),
+    );
+    expect((await screen.findByRole('status')).textContent).toContain('Alert saved successfully.');
+    expect(queryClient.getQueryCache().findAll({ queryKey: ['alerts'] })).toBeTruthy();
+    await user.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(trigger);
+    expect(dialog.getAttribute('aria-modal')).toBe('true');
+  });
+
+  it('shows server errors in the alert dialog', async () => {
+    const user = userEvent.setup();
+    const { ApiError } = await import('./lib/api-client.js');
+    vi.mocked(createAlert).mockRejectedValueOnce(new ApiError('Duplicate', 409, 'DUPLICATE_ALERT'));
+    renderDashboard('/games/celeste');
+    await screen.findByRole('heading', { name: 'Celeste' });
+    await user.click(screen.getByRole('button', { name: 'Set alert' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Celeste' });
+    await user.type(within(dialog).getByLabelText('Target price (USD)'), '3.50');
+    await user.click(within(dialog).getByRole('button', { name: 'Set alert' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('This alert already exists.');
+  });
+
+  it('redirects a logged-out alert request to login and returns to the game', async () => {
+    const user = userEvent.setup();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    renderDashboard('/games/celeste');
+    await screen.findByRole('heading', { name: 'Celeste' });
+    await user.click(screen.getByRole('button', { name: 'Set alert' }));
+    await screen.findByLabelText('Email address');
+    await user.type(screen.getByLabelText('Email address'), 'player@example.com');
+    await user.type(screen.getByLabelText('Password'), 'valid-login-password');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+    expect(await screen.findByRole('heading', { name: 'Celeste' })).toBeTruthy();
+  });
+
+  it('shows alert loading, empty and error states', async () => {
+    let resolveAlerts!: (value: AlertsResponse) => void;
+    vi.mocked(getAlerts).mockReturnValue(
+      new Promise((resolve) => {
+        resolveAlerts = resolve;
+      }),
+    );
+    renderDashboard('/alerts');
+    await screen.findByRole('heading', { name: 'Price alerts' });
+    expect(screen.getByRole('status').textContent).toContain('Loading your alerts');
+    resolveAlerts({
+      ...alertsResponse,
+      data: [],
+      pagination: { ...alertsResponse.pagination, totalItems: 0, totalPages: 0 },
+    });
+    expect(await screen.findByText('You have no price alerts yet.')).toBeTruthy();
+
+    cleanup();
+    vi.mocked(getAlerts).mockRejectedValueOnce(new Error('offline'));
+    renderDashboard('/alerts');
+    expect((await screen.findByRole('alert')).textContent).toContain('could not be loaded');
+  });
+
+  it('pauses, resumes, edits and deletes alerts with confirmation', async () => {
+    const user = userEvent.setup();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    let active = true;
+    let exists = true;
+    vi.mocked(getAlerts).mockImplementation(async () => ({
+      ...alertsResponse,
+      data: exists ? [{ ...alertRecord, isActive: active }] : [],
+      pagination: {
+        ...alertsResponse.pagination,
+        totalItems: exists ? 1 : 0,
+        totalPages: exists ? 1 : 0,
+      },
+    }));
+    vi.mocked(updateAlert).mockImplementation(async (_id, update) => {
+      if (update.isActive !== undefined) active = update.isActive;
+      return { ...alertRecord, ...update };
+    });
+    vi.mocked(deleteAlert).mockImplementation(async () => {
+      exists = false;
+    });
+    renderDashboard('/alerts');
+    await screen.findByText('Below $3.99 at Steam');
+    await user.click(screen.getByRole('button', { name: 'Pause' }));
+    expect(updateAlert).toHaveBeenCalledWith('alert-1', { isActive: false });
+    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(updateAlert).toHaveBeenCalledWith('alert-1', { isActive: true });
+
+    await user.click(screen.getByRole('button', { name: 'Edit' }));
+    await user.clear(await screen.findByLabelText('Target price (USD)'));
+    await user.type(screen.getByLabelText('Target price (USD)'), '2.99');
+    await user.click(screen.getByRole('button', { name: 'Save changes' }));
+    expect(updateAlert).toHaveBeenCalledWith('alert-1', { targetPrice: 2.99 });
+
+    await user.click(screen.getByRole('button', { name: 'Delete' }));
+    expect(confirm).toHaveBeenCalled();
+    expect(deleteAlert).toHaveBeenCalledWith('alert-1', expect.anything());
+    await waitFor(() => expect(screen.getByText('You have no price alerts yet.')).toBeTruthy());
+    confirm.mockRestore();
+  });
+
+  it('rolls back an optimistic pause when the server update fails', async () => {
+    const user = userEvent.setup();
+    vi.mocked(updateAlert).mockRejectedValueOnce(new Error('offline'));
+    renderDashboard('/alerts');
+    await user.click(await screen.findByRole('button', { name: 'Pause' }));
+    expect((await screen.findByRole('alert')).textContent).toContain('previous state was restored');
+    expect(screen.getByRole('button', { name: 'Pause' })).toBeTruthy();
+  });
+
+  it('shows notification badge, marks one and all read, and skips logged-out polling', async () => {
+    const user = userEvent.setup();
+    vi.mocked(getUnreadNotificationCount).mockResolvedValue(3);
+    renderDashboard('/');
+    const bell = await screen.findByRole('button', {
+      name: 'Notifications, 3 unread notifications',
+    });
+    await user.click(bell);
+    expect(await screen.findByText('Celeste dropped to $4.99 at Steam.')).toBeTruthy();
+    await user.click(screen.getByRole('link', { name: /Celeste dropped to/ }));
+    expect(markNotificationRead).toHaveBeenCalledWith('notification-1', expect.anything());
+
+    await user.click(await screen.findByRole('button', { name: /Notifications/ }));
+    await user.click(await screen.findByRole('button', { name: 'Mark all as read' }));
+    expect(markAllNotificationsRead).toHaveBeenCalled();
+    expect(
+      await screen.findByRole('button', { name: 'Notifications, 0 unread notifications' }),
+    ).toBeTruthy();
+
+    cleanup();
+    vi.clearAllMocks();
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    renderDashboard('/');
+    await screen.findByRole('heading', { name: 'Discover game deals' });
+    expect(getUnreadNotificationCount).not.toHaveBeenCalled();
+  });
+
   it('keeps a neutral loading state until session restoration finishes', async () => {
     let resolveRestore!: (value: AuthSessionResponse | null) => void;
     vi.mocked(restoreSession).mockReturnValue(

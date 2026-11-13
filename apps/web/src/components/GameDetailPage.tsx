@@ -5,6 +5,7 @@ import { getGame, getPriceHistory, ApiError } from '../lib/api-client.js';
 import { AccountMenu } from './AccountMenu.js';
 import { PriceHistoryChart } from './PriceHistoryChart.js';
 import { WishlistButton } from './WishlistButton.js';
+import { SetAlertButton } from './SetAlertButton.js';
 
 const historyRanges = ['30d', '90d', '1y', 'all'] as const;
 type HistoryRange = (typeof historyRanges)[number];
@@ -143,6 +144,12 @@ export function GameDetailPage() {
                 : ''}
             </p>
             <WishlistButton gameId={game.game.id} gameTitle={game.game.title} />
+            <SetAlertButton
+              gameId={game.game.id}
+              gameSlug={game.game.slug}
+              gameTitle={game.game.title}
+              listings={game.listings}
+            />
           </div>
         </header>
 

@@ -34,6 +34,7 @@ app.use(
         url: request.url,
         remoteAddress: request.remoteAddress,
       }),
+      res: (response) => ({ statusCode: response.statusCode }),
     },
   }),
 );

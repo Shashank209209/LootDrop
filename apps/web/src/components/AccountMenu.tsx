@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.js';
+import { NotificationBell } from './NotificationBell.js';
 
 export function AccountMenu() {
   const { state, logOut, logoutError } = useAuth();
@@ -22,6 +23,10 @@ export function AccountMenu() {
       <Link className="ghost-button" to="/wishlist">
         Wishlist
       </Link>
+      <Link className="ghost-button" to="/alerts">
+        Alerts
+      </Link>
+      <NotificationBell />
       <button type="button" className="ghost-button" onClick={() => void logOut()}>
         Log out
       </button>

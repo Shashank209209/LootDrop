@@ -236,8 +236,8 @@ export function createAlertsRouter(
         currency: parsed.data.currency,
       };
       const record = await database.$transaction(async (transaction) => {
-        await transaction.$queryRaw(
-          Prisma.sql`SELECT pg_advisory_xact_lock(hashtext(${userId}), hashtext('lootdrop-alert-limit'))`,
+        await transaction.$queryRaw<{ locked: boolean }[]>(
+          Prisma.sql`SELECT TRUE AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${userId}), hashtext('lootdrop-alert-limit'))) AS alert_lock`,
         );
         if (await transaction.priceAlert.findFirst({ where: identity, select: { id: true } })) {
           return { conflict: 'duplicate' as const };

@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { AccountMenu } from './AccountMenu.js';
 import { WishlistButton } from './WishlistButton.js';
 import { getWishlist } from '../lib/api-client.js';
+import { SetAlertButton } from './SetAlertButton.js';
 
 function formatCurrency(value: number, currency: string): string {
   try {
@@ -102,6 +103,12 @@ export function WishlistPage() {
                     )}
                   </div>
                   <WishlistButton gameId={entry.gameId} gameTitle={entry.gameTitle} />
+                  <SetAlertButton
+                    compact
+                    gameId={entry.gameId}
+                    gameSlug={entry.gameSlug}
+                    gameTitle={entry.gameTitle}
+                  />
                 </article>
               ))}
             </section>
