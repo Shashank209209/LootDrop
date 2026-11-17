@@ -94,7 +94,7 @@ export class RawgAdapter {
 
   async getGame(id: number): Promise<RawgGameDetail> {
     const key = cacheKey('game', String(id));
-    const cached = await this.config.cache.get<RawgGameDetail>(key, rawgGameDetailSchema);
+    const cached = await this.config.cache.get(key, rawgGameDetailSchema);
     if (cached) return cached;
 
     const payload = await this.getJson(`/games/${id}`);

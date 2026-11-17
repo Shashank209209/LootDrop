@@ -1,15 +1,18 @@
 import type { Redis } from 'ioredis';
-import type { ZodType } from 'zod';
+import { z, type ZodTypeAny } from 'zod';
 
 export interface JsonCache {
-  get<T>(key: string, schema: ZodType<T>): Promise<T | null>;
+  get<TSchema extends ZodTypeAny>(key: string, schema: TSchema): Promise<z.output<TSchema> | null>;
   set<T>(key: string, value: T, ttlSeconds: number): Promise<void>;
 }
 
 export class RedisJsonCache implements JsonCache {
   constructor(private readonly redis: Redis) {}
 
-  async get<T>(key: string, schema: ZodType<T>): Promise<T | null> {
+  async get<TSchema extends ZodTypeAny>(
+    key: string,
+    schema: TSchema,
+  ): Promise<z.output<TSchema> | null> {
     const value = await this.redis.get(key);
     if (value === null) return null;
 
