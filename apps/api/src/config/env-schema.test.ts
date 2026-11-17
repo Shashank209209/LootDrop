@@ -50,6 +50,27 @@ describe('deal sync interval', () => {
       expect(parsed.EMAIL_FROM).toBeUndefined();
     });
 
+    it('keeps RAWG optional and applies bounded enrichment defaults', () => {
+      const parsed = envSchema.parse({
+        ...validEnvironment,
+        JWT_ACCESS_SECRET: 'a'.repeat(32),
+        RAWG_API_KEY: '',
+      });
+      expect(parsed.RAWG_API_KEY).toBeUndefined();
+      expect(parsed.RAWG_MAX_REQUESTS_PER_RUN).toBe(30);
+      expect(parsed.RAWG_ENRICH_BATCH_SIZE).toBe(15);
+      expect(parsed.ENRICH_INTERVAL_MINUTES).toBe(60);
+    });
+
+    it('rejects enrichment intervals outside 30 to 240 minutes', () => {
+      const base = {
+        ...validEnvironment,
+        JWT_ACCESS_SECRET: 'a'.repeat(32),
+      };
+      expect(envSchema.safeParse({ ...base, ENRICH_INTERVAL_MINUTES: 29 }).success).toBe(false);
+      expect(envSchema.safeParse({ ...base, ENRICH_INTERVAL_MINUTES: 241 }).success).toBe(false);
+    });
+
     it('requires Resend credentials only when Resend is selected', () => {
       const base = {
         ...validEnvironment,

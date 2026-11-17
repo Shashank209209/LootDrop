@@ -1,6 +1,10 @@
 import { z } from 'zod';
 
 export const dealSyncIntervalSchema = z.coerce.number().int().min(30).max(60).default(45);
+const rawgApiKeySchema = z.preprocess(
+  (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+  z.string().trim().min(1).optional(),
+);
 
 const cookieSecureDefault = process.env.NODE_ENV === 'production';
 
@@ -29,6 +33,10 @@ export const envSchema = z
     CHEAPSHARK_USER_AGENT: z.string().min(8).default('DealHunter/0.1.0'),
     CHEAPSHARK_MAX_PAGES: z.coerce.number().int().min(1).max(10).default(2),
     DEAL_SYNC_INTERVAL_MINUTES: dealSyncIntervalSchema,
+    RAWG_API_KEY: rawgApiKeySchema,
+    RAWG_MAX_REQUESTS_PER_RUN: z.coerce.number().int().min(1).max(100).default(30),
+    RAWG_ENRICH_BATCH_SIZE: z.coerce.number().int().min(1).max(100).default(15),
+    ENRICH_INTERVAL_MINUTES: z.coerce.number().int().min(30).max(240).default(60),
     EMAIL_PROVIDER: z.enum(['log', 'resend']).default('log'),
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().email().optional(),
