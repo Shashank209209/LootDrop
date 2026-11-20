@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createCuratedDealsRouter } from './curated-deals-router.js';
+import { emptyMetadata } from '../games/game-metadata.fixture.js';
 
 const servers: Array<ReturnType<express.Express['listen']>> = [];
 const store = { id: 'store-1', name: 'Steam', slug: 'steam' };
@@ -25,7 +26,7 @@ function listing(
     isOnSale: true,
     url: `https://example.com/${id}`,
     lastCheckedAt: new Date(checked),
-    game: { title: `Game ${gameId}`, slug: `game-${gameId}` },
+    game: { ...emptyMetadata, title: `Game ${gameId}`, slug: `game-${gameId}` },
     store,
   };
 }

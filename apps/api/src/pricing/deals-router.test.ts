@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createDealsRouter } from './deals-router.js';
+import { emptyMetadata } from '../games/game-metadata.fixture.js';
 
 const servers: Array<ReturnType<express.Express['listen']>> = [];
 
@@ -16,7 +17,16 @@ const listingRows = [
     isOnSale: true,
     url: 'https://example.com/deal-1',
     lastCheckedAt: new Date('2026-11-05T12:00:00.000Z'),
-    game: { title: 'First Game', slug: 'first-game' },
+    game: {
+      title: 'First Game',
+      slug: 'first-game',
+      coverUrl: 'https://images.example.com/first.jpg',
+      genres: [{ genre: { name: 'Indie', slug: 'indie' } }],
+      platforms: [{ platform: { name: 'PC', slug: 'pc' } }],
+      releaseDate: new Date('2018-01-25'),
+      metacriticScore: 91,
+      userRating: new Prisma.Decimal('4.2'),
+    },
     store: { id: 'store-1', name: 'Steam', slug: 'steam' },
   },
   {
@@ -29,7 +39,7 @@ const listingRows = [
     isOnSale: true,
     url: 'https://example.com/deal-2',
     lastCheckedAt: new Date('2026-11-04T12:00:00.000Z'),
-    game: { title: 'Second Game', slug: 'second-game' },
+    game: { ...emptyMetadata, title: 'Second Game', slug: 'second-game' },
     store: { id: 'store-2', name: 'GOG', slug: 'gog' },
   },
   {
@@ -42,7 +52,7 @@ const listingRows = [
     isOnSale: true,
     url: 'https://example.com/deal-3',
     lastCheckedAt: new Date('2026-11-03T12:00:00.000Z'),
-    game: { title: 'Third Game', slug: 'third-game' },
+    game: { ...emptyMetadata, title: 'Third Game', slug: 'third-game' },
     store: { id: 'store-1', name: 'Steam', slug: 'steam' },
   },
 ];
@@ -58,6 +68,20 @@ function createTestApi(options: { total?: number; rows?: typeof listingRows } = 
     },
     store: {
       findMany: vi.fn(async () => [{ id: 'store-1', name: 'Steam', slug: 'steam' }]),
+    },
+    genre: {
+      findMany: vi.fn(async (args: { where: { slug: { in: string[] } } }) =>
+        args.where.slug.in
+          .filter((slug) => ['indie', 'action'].includes(slug))
+          .map((slug) => ({ slug })),
+      ),
+    },
+    platform: {
+      findMany: vi.fn(async (args: { where: { slug: { in: string[] } } }) =>
+        args.where.slug.in
+          .filter((slug) => ['pc', 'linux'].includes(slug))
+          .map((slug) => ({ slug })),
+      ),
     },
   };
   const database = {
@@ -106,6 +130,12 @@ describe('GET /api/v1/deals', () => {
           gameId: 'game-1',
           gameTitle: 'First Game',
           gameSlug: 'first-game',
+          coverUrl: 'https://images.example.com/first.jpg',
+          genres: [{ slug: 'indie', name: 'Indie' }],
+          platforms: [{ slug: 'pc', name: 'PC' }],
+          releaseDate: '2018-01-25',
+          metacriticScore: 91,
+          userRating: 4.2,
           store: { id: 'store-1', name: 'Steam', slug: 'steam' },
           currentPrice: 9.5,
           regularPrice: 19.99,
@@ -120,6 +150,7 @@ describe('GET /api/v1/deals', () => {
           gameId: 'game-2',
           gameTitle: 'Second Game',
           gameSlug: 'second-game',
+          ...emptyMetadata,
           store: { id: 'store-2', name: 'GOG', slug: 'gog' },
           currentPrice: 4.99,
           regularPrice: null,
@@ -159,6 +190,61 @@ describe('GET /api/v1/deals', () => {
       data: [],
       pagination: { totalItems: 0, totalPages: 0, hasNextPage: false },
     });
+  });
+
+  it.each([
+    ['genre=indie', { genres: { some: { genre: { slug: { in: ['indie'] } } } } }],
+    ['platform=linux', { platforms: { some: { platform: { slug: { in: ['linux'] } } } } }],
+  ])('filters by %s on its own', async (filter, game) => {
+    const api = createTestApi();
+    expect((await api.request('/api/v1/deals?' + filter)).status).toBe(200);
+    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0].where?.game).toEqual(game);
+  });
+
+  it('joins slugs within a facet by OR and combines facets with search, store and rating sort', async () => {
+    const api = createTestApi();
+    const response = await api.request(
+      '/api/v1/deals?genre=indie,action&genre=indie&platform=pc&platform=linux&q=first&store=steam&sort=rating_desc',
+    );
+    expect(response.status).toBe(200);
+    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0]).toMatchObject({
+      where: {
+        game: {
+          title: { contains: 'first', mode: 'insensitive' },
+          genres: { some: { genre: { slug: { in: ['indie', 'action'] } } } },
+          platforms: { some: { platform: { slug: { in: ['pc', 'linux'] } } } },
+        },
+        store: { is: { isActive: true, OR: [{ slug: 'steam' }] } },
+      },
+      orderBy: [
+        { game: { userRating: { sort: 'desc', nulls: 'last' } } },
+        { discountPercent: { sort: 'desc', nulls: 'last' } },
+        { id: 'asc' },
+      ],
+    });
+  });
+
+  it.each(['genre', 'platform'])(
+    'rejects an unknown %s slug before fetching deals',
+    async (name) => {
+      const api = createTestApi();
+      const response = await api.request('/api/v1/deals?' + name + '=unknown');
+      expect(response.status).toBe(400);
+      expect(await response.json()).toEqual({
+        error: { code: 'INVALID_QUERY', message: 'Unknown ' + name + ' slug', details: null },
+      });
+      expect(api.transaction.storeListing.count).not.toHaveBeenCalled();
+    },
+  );
+
+  it.each([
+    ['genre', 11],
+    ['platform', 7],
+  ] as const)('rejects too many %s slugs', async (name, size) => {
+    const api = createTestApi();
+    const query = Array.from({ length: size }, (_, index) => name + '=item-' + index).join('&');
+    expect((await api.request('/api/v1/deals?' + query)).status).toBe(400);
+    expect(api.transaction.storeListing.count).not.toHaveBeenCalled();
   });
 
   it('applies search as a literal, case-insensitive game-title filter', async () => {

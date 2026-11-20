@@ -5,9 +5,10 @@ import { dealSelect, serializeDeal } from './deal-serialization.js';
 
 type DealsDatabase = Pick<PrismaClient, '$transaction' | 'store' | 'storeListing'>;
 
+const multiValueParameters = new Set(['store', 'genre', 'platform']);
 const allowedQueryParameters = new Set([
+  ...multiValueParameters,
   'q',
-  'store',
   'onSale',
   'minPrice',
   'maxPrice',
@@ -26,13 +27,13 @@ function parseDealsQuery(request: Request) {
       return { success: false as const, message: `Unknown query parameter: ${key}` };
     }
     const values = searchParams.getAll(key);
-    if (key !== 'store' && values.length > 1) {
+    if (!multiValueParameters.has(key) && values.length > 1) {
       return {
         success: false as const,
         message: `Query parameter "${key}" may only be specified once`,
       };
     }
-    if (key === 'store') {
+    if (multiValueParameters.has(key)) {
       raw[key] = values;
     } else {
       const value = values[0];
@@ -64,6 +65,12 @@ export function dealOrderBy(
       return [{ lastCheckedAt: 'desc' }, { id: 'asc' }];
     case 'title_asc':
       return [{ game: { title: 'asc' } }, { id: 'asc' }];
+    case 'rating_desc':
+      return [
+        { game: { userRating: { sort: 'desc', nulls: 'last' } } },
+        { discountPercent: { sort: 'desc', nulls: 'last' } },
+        { id: 'asc' },
+      ];
   }
 }
 
@@ -82,11 +89,18 @@ function listingWhere(query: DealsQuery): Prisma.StoreListingWhereInput {
         }
       : undefined;
   const escapedSearch = query.q?.replace(/[\\%_]/g, '\\$&');
+  const game: Prisma.GameWhereInput = {
+    ...(escapedSearch ? { title: { contains: escapedSearch, mode: 'insensitive' } } : {}),
+    ...(query.genre.length ? { genres: { some: { genre: { slug: { in: query.genre } } } } } : {}),
+    ...(query.platform.length
+      ? { platforms: { some: { platform: { slug: { in: query.platform } } } } }
+      : {}),
+  };
 
   return {
     isOnSale: query.onSale,
     store: storeFilter ?? { is: { isActive: true } },
-    ...(escapedSearch ? { game: { title: { contains: escapedSearch, mode: 'insensitive' } } } : {}),
+    ...(Object.keys(game).length ? { game } : {}),
     ...(query.minPrice !== undefined || query.maxPrice !== undefined
       ? {
           currentPrice: {
@@ -118,8 +132,26 @@ export function createDealsRouter(database: DealsDatabase): Router {
     const query = parsed.data;
     const where = listingWhere(query);
     try {
-      const { totalItems, listings } = await database.$transaction(
+      const result = await database.$transaction(
         async (transaction) => {
+          const [genres, platforms] = await Promise.all([
+            query.genre.length
+              ? transaction.genre.findMany({
+                  where: { slug: { in: query.genre } },
+                  select: { slug: true },
+                })
+              : [],
+            query.platform.length
+              ? transaction.platform.findMany({
+                  where: { slug: { in: query.platform } },
+                  select: { slug: true },
+                })
+              : [],
+          ]);
+          if (genres.length !== query.genre.length) return { error: 'Unknown genre slug' } as const;
+          if (platforms.length !== query.platform.length) {
+            return { error: 'Unknown platform slug' } as const;
+          }
           const [count, rows] = await Promise.all([
             transaction.storeListing.count({ where }),
             transaction.storeListing.findMany({
@@ -134,6 +166,11 @@ export function createDealsRouter(database: DealsDatabase): Router {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
       );
+      if (result.error) {
+        sendQueryError(response, result.error);
+        return;
+      }
+      const { totalItems, listings } = result;
       const totalPages = Math.ceil(totalItems / query.pageSize);
       response.json({
         data: listings.map(serializeDeal),

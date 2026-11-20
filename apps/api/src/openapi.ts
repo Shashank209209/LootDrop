@@ -29,6 +29,7 @@ import {
   refreshResponseSchema,
   registerRequestSchema,
   storesResponseSchema,
+  taxonomyResponseSchema,
   createAlertRequestSchema,
   updateAlertRequestSchema,
   wishlistAddRequestSchema,
@@ -77,6 +78,8 @@ registry.registerPath({
   method: 'get',
   path: '/api/v1/deals',
   summary: 'List and filter deals',
+  description:
+    'Repeat genre (max 10) or platform (max 6), or use comma-separated slugs. Slugs within a filter are joined by OR. Separate filters are joined by AND. rating_desc sorts by RAWG user rating with nulls last, then by discount and listing ID.',
   request: { query: dealsQuerySchema },
   responses: {
     200: response(dealsResponseSchema, 'Paginated deal results'),
@@ -89,6 +92,14 @@ registry.registerPath({
   summary: 'List active stores',
   responses: { 200: response(storesResponseSchema, 'Active stores') },
 });
+for (const taxonomy of ['genres', 'platforms']) {
+  registry.registerPath({
+    method: 'get',
+    path: '/api/v1/' + taxonomy,
+    summary: 'List ' + taxonomy + ' with on-sale games',
+    responses: { 200: response(taxonomyResponseSchema, 'Counts of distinct on-sale games') },
+  });
+}
 registry.registerPath({
   method: 'get',
   path: '/api/v1/games/search',

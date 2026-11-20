@@ -85,7 +85,17 @@ globalThis.ResizeObserver = class {
   disconnect() {}
 } as unknown as typeof ResizeObserver;
 
+const emptyMetadata = {
+  coverUrl: null,
+  genres: [],
+  platforms: [],
+  releaseDate: null,
+  metacriticScore: null,
+  userRating: null,
+};
+
 const deal: DealResponse = {
+  ...emptyMetadata,
   id: 'listing-1',
   gameId: '20da2e1d-c56e-4874-8e7c-f5d15d38d502',
   gameTitle: 'Celeste',
@@ -183,7 +193,13 @@ const notificationsResponse: NotificationsResponse = {
 
 const gameDetail: GameDetailResponse = {
   data: {
-    game: { id: '20da2e1d-c56e-4874-8e7c-f5d15d38d502', slug: 'celeste', title: 'Celeste' },
+    game: {
+      ...emptyMetadata,
+      description: null,
+      id: '20da2e1d-c56e-4874-8e7c-f5d15d38d502',
+      slug: 'celeste',
+      title: 'Celeste',
+    },
     listings: [
       {
         id: 'listing-steam',
