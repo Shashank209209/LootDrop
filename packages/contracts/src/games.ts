@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gameMetadataSchema } from './game-metadata.js';
 
 export const gameSearchQuerySchema = z
   .object({
@@ -35,7 +36,12 @@ export const gameListingSchema = z.object({
 
 export const gameDetailResponseSchema = z.object({
   data: z.object({
-    game: z.object({ id: z.string(), slug: z.string(), title: z.string() }),
+    game: gameMetadataSchema.extend({
+      id: z.string(),
+      slug: z.string(),
+      title: z.string(),
+      description: z.string().nullable(),
+    }),
     listings: z.array(gameListingSchema),
     summary: z.object({
       bestListingId: z.string().nullable(),

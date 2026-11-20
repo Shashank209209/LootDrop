@@ -7,12 +7,16 @@ export interface JsonCache {
 }
 
 export class RedisJsonCache implements JsonCache {
-  constructor(private readonly redis: Redis) {}
+  constructor(
+    private readonly redis: Redis,
+    private readonly prefix = '',
+  ) {}
 
   async get<TSchema extends ZodTypeAny>(
     key: string,
     schema: TSchema,
   ): Promise<z.output<TSchema> | null> {
+    key = this.prefix + key;
     const value = await this.redis.get(key);
     if (value === null) return null;
 
@@ -28,6 +32,6 @@ export class RedisJsonCache implements JsonCache {
   }
 
   async set<T>(key: string, value: T, ttlSeconds: number): Promise<void> {
-    await this.redis.set(key, JSON.stringify(value), 'EX', ttlSeconds);
+    await this.redis.set(this.prefix + key, JSON.stringify(value), 'EX', ttlSeconds);
   }
 }

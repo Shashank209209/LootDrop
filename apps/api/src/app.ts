@@ -9,6 +9,7 @@ import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { createDealsRouter } from './pricing/deals-router.js';
 import { createGamesRouter } from './games/games-router.js';
+import { createTaxonomyRouter } from './games/taxonomy-router.js';
 import { createCuratedDealsRouter } from './pricing/curated-deals-router.js';
 import { createOpenApiDocument } from './openapi.js';
 import { createAuthRouter } from './auth/auth-router.js';
@@ -66,6 +67,7 @@ app.use(
 app.use('/api/v1', createDealsRouter(prisma));
 app.use('/api/v1', createCuratedDealsRouter(prisma));
 app.use('/api/v1', createGamesRouter(prisma));
+app.use('/api/v1', createTaxonomyRouter(prisma));
 app.use(
   '/api/v1/auth',
   createAuthRouter(prisma, {

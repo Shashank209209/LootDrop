@@ -2,12 +2,19 @@ import { describe, expect, it, vi } from 'vitest';
 import type { JsonCache } from '../cache.js';
 import type { RequestLimiter } from '../rate-limiter.js';
 import { rawgDetailFixture, rawgSearchFixture } from './fixtures.js';
-import { RawgAdapter, RawgQuotaError, RawgRequestError, RawgValidationError } from './adapter.js';
+import {
+  RawgAdapter,
+  RawgBudgetError,
+  RawgQuotaError,
+  RawgRequestError,
+  RawgValidationError,
+} from './adapter.js';
 
 function createAdapter(
   fetchImpl: typeof fetch,
   cacheValues = new Map<string, unknown>(),
   sleepImpl = vi.fn(async () => {}),
+  maxRequests?: number,
 ) {
   const cache: JsonCache = {
     get: vi.fn(async (key, schema) => {
@@ -22,7 +29,14 @@ function createAdapter(
   };
   const limiter: RequestLimiter = { waitForPermit: vi.fn(async () => {}) };
   return {
-    adapter: new RawgAdapter({ apiKey: '', cache, limiter, fetchImpl, sleepImpl }),
+    adapter: new RawgAdapter({
+      apiKey: '',
+      cache,
+      limiter,
+      fetchImpl,
+      sleepImpl,
+      ...(maxRequests === undefined ? {} : { maxRequests }),
+    }),
     cache,
     limiter,
     sleepImpl,
@@ -112,5 +126,13 @@ describe('RawgAdapter', () => {
       vi.fn(async () => jsonResponse({ id: 'bad' })) as typeof fetch,
     ).adapter;
     await expect(malformed.getGame(123)).rejects.toBeInstanceOf(RawgValidationError);
+  });
+
+  it('counts failed HTTP attempts against the hard request budget', async () => {
+    const fetchImpl = vi.fn(async () => jsonResponse({}, 503));
+    const { adapter } = createAdapter(fetchImpl, undefined, undefined, 2);
+    await expect(adapter.searchGames('Celeste')).rejects.toBeInstanceOf(RawgBudgetError);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(adapter.requestsUsed).toBe(2);
   });
 });

@@ -2,6 +2,7 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createGamesRouter } from './games-router.js';
+import { emptyMetadata } from './game-metadata.fixture.js';
 
 const servers: Array<ReturnType<express.Express['listen']>> = [];
 const capturedAt = (day: number) => new Date(Date.UTC(2026, 0, day));
@@ -178,6 +179,8 @@ describe('GET /api/v1/games/:slug', () => {
         id: 'game-1',
         slug: 'game-one',
         title: 'Game One',
+        ...emptyMetadata,
+        description: null,
         listings: [listing('usd-1', storeSteam, '5.00'), listing('eur-1', storeGog, '3.00', 'EUR')],
       })),
       groups: vi.fn(async () => [
@@ -200,6 +203,7 @@ describe('GET /api/v1/games/:slug', () => {
 
     expect(response.status).toBe(200);
     expect(body.data.listings).toHaveLength(2);
+    expect(body.data).toMatchObject({ game: { ...emptyMetadata, description: null } });
     expect(body.data.summary).toEqual({
       bestListingId: null,
       lowestRecordedPrice: null,
@@ -220,6 +224,13 @@ describe('GET /api/v1/games/:slug', () => {
         id: 'game-1',
         slug: 'game-one',
         title: 'Game One',
+        coverUrl: 'https://images.example.com/game.jpg',
+        description: 'Plain text',
+        releaseDate: new Date('2020-05-03'),
+        metacriticScore: 90,
+        userRating: new Prisma.Decimal('4.4'),
+        genres: [{ genre: { name: 'Indie', slug: 'indie' } }],
+        platforms: [{ platform: { name: 'PC', slug: 'pc' } }],
         listings: [listing('listing-1', storeSteam, '5.00')],
       })),
       groups: vi.fn(async () => [
@@ -235,6 +246,15 @@ describe('GET /api/v1/games/:slug', () => {
 
     expect(await response.json()).toMatchObject({
       data: {
+        game: {
+          coverUrl: 'https://images.example.com/game.jpg',
+          description: 'Plain text',
+          releaseDate: '2020-05-03',
+          metacriticScore: 90,
+          userRating: 4.4,
+          genres: [{ name: 'Indie', slug: 'indie' }],
+          platforms: [{ name: 'PC', slug: 'pc' }],
+        },
         summary: {
           bestListingId: 'listing-1',
           lowestRecordedPrice: 2,

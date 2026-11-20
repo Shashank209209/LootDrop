@@ -29,6 +29,13 @@ export class RawgRequestError extends Error {
   }
 }
 
+export class RawgBudgetError extends Error {
+  constructor() {
+    super('RAWG request budget reached');
+    this.name = 'RawgBudgetError';
+  }
+}
+
 export class RawgValidationError extends Error {
   constructor() {
     super('RAWG returned a malformed game detail record');
@@ -40,6 +47,7 @@ export interface RawgAdapterConfig {
   apiKey: string;
   cache: JsonCache;
   limiter: RequestLimiter;
+  maxRequests?: number;
   fetchImpl?: typeof fetch;
   sleepImpl?: (milliseconds: number) => Promise<void>;
 }
@@ -110,6 +118,9 @@ export class RawgAdapter {
     for (const [name, value] of Object.entries(query)) url.searchParams.set(name, value);
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+      if (this.networkRequests >= (this.config.maxRequests ?? Infinity)) {
+        throw new RawgBudgetError();
+      }
       await this.config.limiter.waitForPermit();
       this.networkRequests += 1;
 
@@ -118,6 +129,7 @@ export class RawgAdapter {
         response = await this.fetchImpl(url, {
           headers: { Accept: 'application/json' },
           signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          redirect: 'error',
         });
       } catch {
         if (attempt === MAX_RETRIES) {
@@ -127,7 +139,7 @@ export class RawgAdapter {
         continue;
       }
 
-      if (response.status === 429 || response.status === 403) throw new RawgQuotaError();
+      if ([401, 403, 429].includes(response.status)) throw new RawgQuotaError();
       if (response.status >= 500) {
         if (attempt === MAX_RETRIES) {
           throw new RawgRequestError(`RAWG request failed with HTTP ${response.status}`);

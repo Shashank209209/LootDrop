@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { DealResponse } from '@dealhunter/contracts';
 import { WishlistButton } from './WishlistButton.js';
+import { GameCover, MetadataTags } from './GameMedia.js';
 
 function formatCurrency(amount: number, currency: string) {
   try {
@@ -21,9 +22,7 @@ export function DealCard({
 }) {
   return (
     <article className="deal-card">
-      <div className="deal-cover" aria-hidden="true">
-        <span>{deal.gameTitle.slice(0, 1) || '?'}</span>
-      </div>
+      <GameCover title={deal.gameTitle} url={deal.coverUrl} />
       <div className="deal-body">
         <div className="deal-header">
           <div>
@@ -45,6 +44,15 @@ export function DealCard({
           ) : null}
           <WishlistButton gameId={deal.gameId} gameTitle={deal.gameTitle} />
         </div>
+        <MetadataTags label="Genres" items={deal.genres} />
+        {deal.userRating != null || deal.releaseDate ? (
+          <div className="metadata-facts">
+            {deal.userRating != null ? <span>RAWG {deal.userRating}/5</span> : null}
+            {deal.releaseDate ? (
+              <time dateTime={deal.releaseDate}>{deal.releaseDate.slice(0, 4)}</time>
+            ) : null}
+          </div>
+        ) : null}
         <div className="deal-meta-line">
           <span>{deal.isOnSale ? 'On sale' : 'Regular price'}</span>
           <span>Checked {new Date(deal.lastCheckedAt).toLocaleString()}</span>

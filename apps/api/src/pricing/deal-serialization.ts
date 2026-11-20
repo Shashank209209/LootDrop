@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { gameMetadataSelect, serializeGameMetadata } from '../games/game-metadata.js';
 
 export const dealSelect = {
   id: true,
@@ -10,7 +11,7 @@ export const dealSelect = {
   isOnSale: true,
   url: true,
   lastCheckedAt: true,
-  game: { select: { title: true, slug: true } },
+  game: { select: { title: true, slug: true, ...gameMetadataSelect } },
   store: { select: { id: true, name: true, slug: true } },
 } satisfies Prisma.StoreListingSelect;
 
@@ -27,6 +28,7 @@ export function serializeDeal(listing: SelectedDealListing) {
     gameId: listing.gameId,
     gameTitle: listing.game.title,
     gameSlug: listing.game.slug,
+    ...serializeGameMetadata(listing.game),
     store: listing.store,
     currentPrice: moneyNumber(listing.currentPrice) ?? 0,
     regularPrice: moneyNumber(listing.regularPrice),

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { gameMetadataSchema, type GameMetadata } from './game-metadata.js';
 
 export const dealSortOptions = [
   'discount_desc',
@@ -6,6 +7,7 @@ export const dealSortOptions = [
   'price_desc',
   'newest',
   'title_asc',
+  'rating_desc',
 ] as const;
 
 const optionalNonNegativeNumber = z.preprocess((value) => {
@@ -21,18 +23,47 @@ const optionalInteger = (defaultValue: number, min: number, max: number) =>
     return Number(value);
   }, z.number().int().min(min).max(max));
 
-const storesSchema = z.preprocess(
-  (value) =>
-    (Array.isArray(value) ? value : value === undefined ? [] : [value])
-      .flatMap((entry) => (typeof entry === 'string' ? entry.split(',') : [entry]))
-      .map((entry) => (typeof entry === 'string' ? entry.trim() : entry)),
-  z.array(z.string().min(1).max(170)).default([]),
-);
+const splitValues = (value: unknown) =>
+  (Array.isArray(value) ? value : value === undefined ? [] : [value])
+    .flatMap((entry) => (typeof entry === 'string' ? entry.split(',') : [entry]))
+    .map((entry) => (typeof entry === 'string' ? entry.trim() : entry));
+
+const storesSchema = z.preprocess(splitValues, z.array(z.string().min(1).max(170)).default([]));
+
+const taxonomySlugs = (limit: number) =>
+  z.preprocess(
+    (value, context) => {
+      const values = splitValues(value);
+      if (values.length > limit) {
+        context.addIssue({
+          code: z.ZodIssueCode.too_big,
+          type: 'array',
+          maximum: limit,
+          inclusive: true,
+          message: `Use at most ${limit} slugs`,
+        });
+        return z.NEVER;
+      }
+      return values;
+    },
+    z
+      .array(
+        z
+          .string()
+          .max(120)
+          .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+      )
+      .max(limit)
+      .default([])
+      .transform((values) => [...new Set(values)]),
+  );
 
 export const dealsQuerySchema = z
   .object({
     q: z.string().trim().max(100).optional(),
     store: storesSchema,
+    genre: taxonomySlugs(10),
+    platform: taxonomySlugs(6),
     onSale: z
       .enum(['true', 'false'])
       .default('true')
@@ -65,7 +96,7 @@ export const dealsQuerySchema = z
 
 export type DealsQuery = z.infer<typeof dealsQuerySchema>;
 
-export interface DealResponse {
+export interface DealResponse extends GameMetadata {
   id: string;
   gameId: string;
   gameTitle: string;
@@ -80,7 +111,7 @@ export interface DealResponse {
   lastCheckedAt: string;
 }
 
-export const dealResponseSchema = z.object({
+export const dealResponseSchema = gameMetadataSchema.extend({
   id: z.string(),
   gameId: z.string(),
   gameTitle: z.string(),

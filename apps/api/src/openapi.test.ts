@@ -25,6 +25,8 @@ describe('OpenAPI document', () => {
         '/api/v1/games/search',
         '/api/v1/games/{slug}',
         '/api/v1/games/{slug}/price-history',
+        '/api/v1/genres',
+        '/api/v1/platforms',
         '/api/v1/health',
         '/api/v1/stores',
         '/api/v1/wishlist',
@@ -37,6 +39,12 @@ describe('OpenAPI document', () => {
     );
     expect(document.paths?.['/api/v1/deals/best']?.get?.description).toContain(
       'regular price of at least 5',
+    );
+    expect(document.paths?.['/api/v1/deals']?.get?.parameters).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'genre', in: 'query', required: false }),
+        expect.objectContaining({ name: 'platform', in: 'query', required: false }),
+      ]),
     );
   });
 });

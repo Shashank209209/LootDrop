@@ -37,6 +37,7 @@ export const rawgGameDetailSchema = z.object({
   rating: nullableNumber,
   genres: z.array(rawgGenreSchema).default([]),
   platforms: z.array(rawgPlatformSchema).nullable().default([]),
+  parent_platforms: z.array(rawgPlatformSchema).nullish(),
 });
 
 export type RawgSearchRecord = z.infer<typeof rawgSearchRecordSchema>;

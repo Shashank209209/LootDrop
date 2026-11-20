@@ -684,6 +684,7 @@ img {
 .deal-filters input,
 .deal-filters select {
   width: 100%;
+  min-height: 44px;
   min-width: 0;
   border: 1px solid rgba(39, 39, 42, 0.12);
   border-radius: 12px;
@@ -860,6 +861,115 @@ img {
   margin-top: 12px;
 }
 
+.deals-with-sidebar {
+  display: grid;
+  grid-template-columns: minmax(165px, 215px) minmax(0, 1fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.taxonomy-sidebar {
+  display: grid;
+  gap: 16px;
+  padding: 14px;
+  margin-top: 12px;
+  border: 1px solid #e4e4e7;
+  border-radius: 16px;
+  background: #fff;
+}
+
+.taxonomy-filter {
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.taxonomy-filter legend {
+  padding: 0 0 4px;
+  font-weight: 700;
+}
+
+.taxonomy-option {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  color: #27272a;
+  cursor: pointer;
+}
+
+.taxonomy-option input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: #115e59;
+}
+
+.taxonomy-count {
+  color: #52525b;
+  font-variant-numeric: tabular-nums;
+}
+
+.taxonomy-sidebar .ghost-button,
+.game-description .ghost-button,
+.rawg-attribution {
+  min-height: 44px;
+}
+
+.metadata-tags,
+.metadata-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  margin: 6px 0;
+  font-size: 0.85rem;
+  color: #3f3f46;
+}
+
+.metadata-tags {
+  padding: 0;
+  list-style: none;
+}
+
+.metadata-tags li {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8f3f1;
+  color: #114a43;
+  overflow-wrap: anywhere;
+}
+
+.game-metadata {
+  display: grid;
+  justify-items: start;
+  gap: 12px;
+}
+
+.game-metadata h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.game-description p {
+  margin: 0 0 8px;
+  max-width: 75ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.rawg-attribution {
+  display: inline-flex;
+  align-items: center;
+  color: #115e59;
+}
+
+.site-footer {
+  padding: 8px 18px 20px;
+  text-align: center;
+}
+
 .deal-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -965,6 +1075,8 @@ img {
 
 .deal-body {
   flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -972,6 +1084,7 @@ img {
 
 .deal-header {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 12px;
 }
@@ -1374,7 +1487,8 @@ img {
   .hero-panel,
   .content-grid,
   .summary-grid,
-  .deal-grid {
+  .deal-grid,
+  .deals-with-sidebar {
     grid-template-columns: 1fr;
   }
 
@@ -1419,5 +1533,11 @@ img {
 
   .search-wrap {
     width: 100%;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1120px) {
+  .deals-with-sidebar .deal-grid {
+    grid-template-columns: 1fr;
   }
 }

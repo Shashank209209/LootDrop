@@ -57,3 +57,58 @@ Replace the alert placeholder with an ID from the child branch and use a price
 below both the listing's current price and the alert target. The simulator
 refuses production, unguarded execution, non-throwaway users, and ambiguous
 alerts or listings.
+
+## Metadata enrichment
+
+LootDrop searches RAWG for catalog games without a RAWG ID. It accepts a single
+result whose title matches after normalizing case, punctuation, trademarks and
+edition words. An exact match keeps similar games from being assigned the wrong
+metadata. The worker preserves existing fields and links. It remembers
+unmatched, ambiguous and conflicting games in Redis for seven days.
+Enrichment runs on the existing worker at concurrency one, sharing its Redis
+queue polling with deal sync.
+
+| API environment variable    | Default | Effect                                                         |
+| --------------------------- | ------- | -------------------------------------------------------------- |
+| `RAWG_API_KEY`              | Unset   | Enables enrichment. The API and worker still start without it. |
+| `RAWG_MAX_REQUESTS_PER_RUN` | 30      | Caps outbound RAWG requests, including retries.                |
+| `RAWG_ENRICH_BATCH_SIZE`    | 15      | Caps games examined per run. On-sale games go first.           |
+| `ENRICH_INTERVAL_MINUTES`   | 60      | Sets the recurring worker interval within 30 to 240 minutes.   |
+
+Keep the key in the ignored root `.env`. Use `DIRECT_URL_PHASE5_TEST` and
+`DATABASE_URL_PHASE5_TEST` for the isolated `lootdrop / phase-5-test / neondb`
+child branch. The guard verifies the configured endpoints, gives the subprocess
+an isolated queue prefix and disables repeatable schedules.
+
+```powershell
+node scripts/phase5-test-guard.mjs --check-only
+node scripts/phase5-test-guard.mjs -- npm run enrich:once -- --limit 10
+```
+
+To reproduce the full check, build the shared contracts and run the guarded
+script. It enriches two batches on the child branch and verifies that the second
+batch leaves the previously enriched rows and their link counts intact.
+
+```powershell
+npm.cmd run build --workspace=@dealhunter/contracts
+node scripts/phase5-test-guard.mjs -- node scripts/phase5-live-check.mjs
+```
+
+For a browser check, start the guarded API in one PowerShell window and run
+`npm.cmd run dev:web` in another. Open [LootDrop](http://localhost:5173). Add
+`--without-key` before the guard's `--` to exercise startup with enrichment
+disabled. Previously saved metadata remains visible when enrichment is disabled.
+
+```powershell
+npm.cmd run build --workspace=@dealhunter/contracts
+node scripts/phase5-test-guard.mjs -- node --import tsx apps/api/src/server.ts
+```
+
+On a catalog awaiting enrichment, games without cover URLs show placeholders
+and empty filters are hidden. After enrichment, select genre and platform
+filters, refresh to confirm they stay selected, and open a game to inspect its
+cover, ratings, release date, taxonomy and description.
+
+RAWG requires credit and an active link on each page that uses its data or
+images. LootDrop links to RAWG in the site footer and on game detail pages.
+[RAWG API terms](https://rawg.io/tos_api)

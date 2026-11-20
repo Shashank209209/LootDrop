@@ -8,6 +8,7 @@ import {
 } from '@dealhunter/contracts';
 import { Router, type Request, type Response } from 'express';
 import { moneyNumber } from '../pricing/deal-serialization.js';
+import { gameMetadataSelect, serializeGameMetadata } from './game-metadata.js';
 
 type GamesDatabase = Pick<PrismaClient, 'game' | 'store' | 'priceSnapshot'>;
 
@@ -269,6 +270,8 @@ export function createGamesRouter(database: GamesDatabase): Router {
           id: true,
           slug: true,
           title: true,
+          ...gameMetadataSelect,
+          description: true,
           listings: {
             where: { store: { isActive: true } },
             orderBy: [
@@ -342,7 +345,13 @@ export function createGamesRouter(database: GamesDatabase): Router {
 
       response.json({
         data: {
-          game: { id: game.id, slug: game.slug, title: game.title },
+          game: {
+            id: game.id,
+            slug: game.slug,
+            title: game.title,
+            ...serializeGameMetadata(game),
+            description: game.description,
+          },
           listings: game.listings.map((listing) => ({
             id: listing.id,
             store: listing.store,
