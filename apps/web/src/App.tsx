@@ -9,6 +9,8 @@ import { CuratedDealSection } from './components/CuratedDealSection.js';
 import { DealCard } from './components/DealCard.js';
 import { GameAutocomplete } from './components/GameAutocomplete.js';
 import { GameDetailPage } from './components/GameDetailPage.js';
+import { RawgAttribution } from './components/GameMedia.js';
+import { TaxonomyFilter } from './components/TaxonomyFilter.js';
 import { WishlistPage } from './components/WishlistPage.js';
 import { AlertsPage } from './components/AlertsPage.js';
 import { NotificationsPage } from './components/NotificationsPage.js';
@@ -18,6 +20,7 @@ import {
   getFreeDeals,
   getHistoricalLows,
   getStores,
+  getTaxonomy,
   type DealQueryParams,
 } from './lib/api-client.js';
 
@@ -28,14 +31,28 @@ function readNumber(searchParams: URLSearchParams, name: string): number | undef
   return Number.isFinite(value) ? value : undefined;
 }
 
+function readSlugs(params: URLSearchParams, key: 'genre' | 'platform') {
+  return [
+    ...new Set(
+      params
+        .getAll(key)
+        .flatMap((value) => value.split(','))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
+}
+
 function Dashboard() {
   const { state } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}`;
-  const urlQuery = searchParams.toString();
-  const [searchInput, setSearchInput] = useState(searchParams.get('q') ?? '');
+  const searchQuery = searchParams.get('q') ?? '';
+  const [searchInput, setSearchInput] = useState(searchQuery);
   const selectedStore = searchParams.get('store') ?? '';
+  const selectedGenres = readSlugs(searchParams, 'genre');
+  const selectedPlatforms = readSlugs(searchParams, 'platform');
   const onSale = searchParams.get('onSale') !== 'false';
   const minPriceText = searchParams.get('minPrice') ?? '';
   const maxPriceText = searchParams.get('maxPrice') ?? '';
@@ -49,8 +66,10 @@ function Dashboard() {
   const minDiscount = readNumber(searchParams, 'minDiscount');
 
   const apiQuery: DealQueryParams = {
-    ...(searchParams.get('q') ? { q: searchParams.get('q')! } : {}),
+    ...(searchQuery ? { q: searchQuery } : {}),
     ...(selectedStore ? { store: selectedStore } : {}),
+    ...(selectedGenres.length ? { genre: selectedGenres } : {}),
+    ...(selectedPlatforms.length ? { platform: selectedPlatforms } : {}),
     onSale,
     ...(minPrice !== undefined ? { minPrice } : {}),
     ...(maxPrice !== undefined ? { maxPrice } : {}),
@@ -69,6 +88,16 @@ function Dashboard() {
     queryKey: ['stores'],
     queryFn: ({ signal }) => getStores(signal),
     staleTime: 5 * 60 * 1000,
+  });
+  const genresQuery = useQuery({
+    queryKey: ['genres'],
+    queryFn: ({ signal }) => getTaxonomy('genres', signal),
+    staleTime: 60_000,
+  });
+  const platformsQuery = useQuery({
+    queryKey: ['platforms'],
+    queryFn: ({ signal }) => getTaxonomy('platforms', signal),
+    staleTime: 60_000,
   });
   const bestDealsQuery = useQuery({
     queryKey: ['best-deals'],
@@ -106,8 +135,8 @@ function Dashboard() {
   }, [searchInput, searchParams, setSearchParams]);
 
   useEffect(() => {
-    setSearchInput(searchParams.get('q') ?? '');
-  }, [urlQuery, searchParams]);
+    setSearchInput(searchQuery);
+  }, [searchQuery]);
 
   const updateFilter = (key: string, value: string) => {
     setSearchParams((current) => {
@@ -128,6 +157,30 @@ function Dashboard() {
     });
   };
 
+  const toggleTaxonomy = (key: 'genre' | 'platform', slug: string, max: number) => {
+    setSearchParams((current) => {
+      const selected = readSlugs(current, key);
+      const values = selected.includes(slug)
+        ? selected.filter((value) => value !== slug)
+        : [...selected, slug].slice(0, max);
+      const next = new URLSearchParams(current);
+      next.delete(key);
+      for (const value of values) next.append(key, value);
+      next.delete('page');
+      return next;
+    });
+  };
+
+  const clearTaxonomy = () => {
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete('genre');
+      next.delete('platform');
+      next.delete('page');
+      return next;
+    });
+  };
+
   const resetFilters = () => {
     setSearchInput('');
     setSearchParams(new URLSearchParams(), { replace: true });
@@ -135,6 +188,10 @@ function Dashboard() {
 
   const deals = dealsQuery.data?.data ?? [];
   const pagination = dealsQuery.data?.pagination;
+  const genres = genresQuery.data?.data ?? [];
+  const platforms = platformsQuery.data?.data ?? [];
+  const taxonomySelected = selectedGenres.length + selectedPlatforms.length > 0;
+  const hasTaxonomy = genres.length + platforms.length > 0 || taxonomySelected;
 
   return (
     <main className="page-shell">
@@ -244,6 +301,7 @@ function Dashboard() {
               <option value="price_desc">Price: high to low</option>
               <option value="newest">Recently checked</option>
               <option value="title_asc">Title: A to Z</option>
+              <option value="rating_desc">Highest rating</option>
             </select>
           </label>
           <label>
@@ -290,81 +348,110 @@ function Dashboard() {
           />
         </div>
 
-        <section className="deals-panel" aria-label="Live deals" aria-busy={dealsQuery.isFetching}>
-          <div className="panel-header">
-            <h3>Current deals</h3>
-            <span>
-              {pagination ? `${pagination.totalItems} matching deals` : 'Loading deals'}
-              {dealsQuery.isFetching && dealsQuery.data ? ' · Updating' : ''}
-            </span>
-          </div>
-
-          {storesQuery.isError ? (
-            <p className="inline-error">Store filters could not be loaded.</p>
+        <div className={hasTaxonomy ? 'deals-with-sidebar' : undefined}>
+          {hasTaxonomy ? (
+            <aside className="taxonomy-sidebar" aria-label="Category and platform filters">
+              <TaxonomyFilter
+                label="Genres"
+                options={genres}
+                selected={selectedGenres}
+                max={10}
+                onToggle={(slug) => toggleTaxonomy('genre', slug, 10)}
+              />
+              <TaxonomyFilter
+                label="Platforms"
+                options={platforms}
+                selected={selectedPlatforms}
+                max={6}
+                onToggle={(slug) => toggleTaxonomy('platform', slug, 6)}
+              />
+              {taxonomySelected ? (
+                <button className="ghost-button" type="button" onClick={clearTaxonomy}>
+                  Clear categories and platforms
+                </button>
+              ) : null}
+            </aside>
           ) : null}
+          <section
+            className="deals-panel"
+            aria-label="Live deals"
+            aria-busy={dealsQuery.isFetching}
+          >
+            <div className="panel-header">
+              <h3>Current deals</h3>
+              <span>
+                {pagination ? `${pagination.totalItems} matching deals` : 'Loading deals'}
+                {dealsQuery.isFetching && dealsQuery.data ? ' · Updating' : ''}
+              </span>
+            </div>
 
-          {dealsQuery.isError ? (
-            <div className="request-state error-state" role="alert">
-              <p>Deals could not be loaded: {dealsQuery.error.message}</p>
-              <button
-                type="button"
-                className="primary-button"
-                onClick={() => void dealsQuery.refetch()}
-              >
-                Retry
-              </button>
-            </div>
-          ) : dealsQuery.isPending ? (
-            <div className="deal-grid" aria-label="Loading deals">
-              {Array.from({ length: 6 }, (_, index) => (
-                <div className="deal-card deal-skeleton" key={index}>
-                  <div className="deal-cover" />
-                  <div className="skeleton-lines">
-                    <span />
-                    <span />
-                    <span />
+            {storesQuery.isError ? (
+              <p className="inline-error">Store filters could not be loaded.</p>
+            ) : null}
+
+            {dealsQuery.isError ? (
+              <div className="request-state error-state" role="alert">
+                <p>Deals could not be loaded: {dealsQuery.error.message}</p>
+                <button
+                  type="button"
+                  className="primary-button"
+                  onClick={() => void dealsQuery.refetch()}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : dealsQuery.isPending ? (
+              <div className="deal-grid" aria-label="Loading deals">
+                {Array.from({ length: 6 }, (_, index) => (
+                  <div className="deal-card deal-skeleton" key={index}>
+                    <div className="deal-cover" />
+                    <div className="skeleton-lines">
+                      <span />
+                      <span />
+                      <span />
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : deals.length === 0 ? (
-            <div className="request-state empty-state">
-              <p>No deals match your filters.</p>
-              <button type="button" className="ghost-button" onClick={resetFilters}>
-                Reset filters
-              </button>
-            </div>
-          ) : (
-            <>
-              <div className="deal-grid">
-                {deals.map((deal) => (
-                  <DealCard key={deal.id} deal={deal} returnTo={returnTo} />
                 ))}
               </div>
-              <nav className="pagination-controls" aria-label="Deal pages">
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => updatePage(page - 1)}
-                  disabled={page <= 1}
-                >
-                  Previous
+            ) : deals.length === 0 ? (
+              <div className="request-state empty-state">
+                <p>No deals match your filters.</p>
+                <button type="button" className="ghost-button" onClick={resetFilters}>
+                  Reset filters
                 </button>
-                <span>
-                  Page {pagination?.page ?? page} of {pagination?.totalPages ?? 0}
-                </span>
-                <button
-                  type="button"
-                  className="ghost-button"
-                  onClick={() => updatePage(page + 1)}
-                  disabled={!pagination?.hasNextPage}
-                >
-                  Next
-                </button>
-              </nav>
-            </>
-          )}
-        </section>
+              </div>
+            ) : (
+              <>
+                <div className="deal-grid">
+                  {deals.map((deal) => (
+                    <DealCard key={deal.id} deal={deal} returnTo={returnTo} />
+                  ))}
+                </div>
+                <nav className="pagination-controls" aria-label="Deal pages">
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => updatePage(page - 1)}
+                    disabled={page <= 1}
+                  >
+                    Previous
+                  </button>
+                  <span>
+                    Page {pagination?.page ?? page} of {pagination?.totalPages ?? 0}
+                  </span>
+                  <button
+                    type="button"
+                    className="ghost-button"
+                    onClick={() => updatePage(page + 1)}
+                    disabled={!pagination?.hasNextPage}
+                  >
+                    Next
+                  </button>
+                </nav>
+              </>
+            )}
+          </section>
+        </div>
       </div>
     </main>
   );
@@ -457,6 +544,9 @@ export default function AppRouter() {
   return (
     <AuthProvider>
       <AppRoutes />
+      <footer className="site-footer">
+        <RawgAttribution />
+      </footer>
     </AuthProvider>
   );
 }

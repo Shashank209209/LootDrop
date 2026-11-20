@@ -6,8 +6,13 @@ import { AccountMenu } from './AccountMenu.js';
 import { PriceHistoryChart } from './PriceHistoryChart.js';
 import { WishlistButton } from './WishlistButton.js';
 import { SetAlertButton } from './SetAlertButton.js';
+import { GameCover, GameDescription, MetadataTags, RawgAttribution } from './GameMedia.js';
 
 const historyRanges = ['30d', '90d', '1y', 'all'] as const;
+const releaseDateFormat = new Intl.DateTimeFormat(undefined, {
+  dateStyle: 'long',
+  timeZone: 'UTC',
+});
 type HistoryRange = (typeof historyRanges)[number];
 type ListingSort = 'price' | 'store';
 
@@ -118,6 +123,16 @@ export function GameDetailPage() {
 
   const summaryCurrency =
     new Set(listings.map((listing) => listing.currency)).size === 1 ? listings[0]?.currency : null;
+  const {
+    title,
+    coverUrl,
+    genres,
+    platforms,
+    releaseDate,
+    metacriticScore,
+    userRating,
+    description,
+  } = game.game;
   return (
     <main className="page-shell">
       <div className="page-inner game-detail">
@@ -128,12 +143,10 @@ export function GameDetailPage() {
           <AccountMenu />
         </header>
         <header className="game-detail-header">
-          <div className="deal-cover game-detail-cover" aria-hidden="true">
-            <span>{game.game.title.slice(0, 1) || '?'}</span>
-          </div>
+          <GameCover title={title} url={coverUrl} detail />
           <div>
             <p className="eyebrow">Game details</p>
-            <h1>{game.game.title}</h1>
+            <h1>{title}</h1>
             <p>
               {game.summary.snapshotCount} recorded price observations
               {game.summary.lowestRecordedPrice !== null && summaryCurrency
@@ -152,6 +165,34 @@ export function GameDetailPage() {
             />
           </div>
         </header>
+        <section className="detail-panel game-metadata" aria-label="Game metadata">
+          {genres?.length ? (
+            <div>
+              <h2>Genres</h2>
+              <MetadataTags label="Genres" items={genres} />
+            </div>
+          ) : null}
+          {platforms?.length ? (
+            <div>
+              <h2>Platforms</h2>
+              <MetadataTags label="Platforms" items={platforms} />
+            </div>
+          ) : null}
+          <div className="metadata-facts">
+            {releaseDate ? (
+              <span>
+                Released{' '}
+                <time dateTime={releaseDate}>
+                  {releaseDateFormat.format(new Date(releaseDate))}
+                </time>
+              </span>
+            ) : null}
+            {userRating != null ? <span>RAWG rating {userRating}/5</span> : null}
+            {metacriticScore != null ? <span>Metacritic {metacriticScore}/100</span> : null}
+          </div>
+          {description ? <GameDescription key={game.game.slug} description={description} /> : null}
+          <RawgAttribution />
+        </section>
 
         <section className="detail-panel" aria-labelledby="store-comparison-title">
           <div className="panel-header">

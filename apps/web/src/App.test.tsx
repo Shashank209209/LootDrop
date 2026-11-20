@@ -3,7 +3,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   AuthSessionResponse,
@@ -32,6 +32,7 @@ import {
   getUnreadNotificationCount,
   getPriceHistory,
   getStores,
+  getTaxonomy,
   getWishlist,
   getWishlistIds,
   login,
@@ -54,6 +55,7 @@ vi.mock('./lib/api-client.js', async (importOriginal) => {
     ...actual,
     getDeals: vi.fn(),
     getStores: vi.fn(),
+    getTaxonomy: vi.fn(),
     getBestDeals: vi.fn(),
     getAlerts: vi.fn(),
     getFreeDeals: vi.fn(),
@@ -284,6 +286,14 @@ function dealsResponse(data: DealResponse[] = [deal], page = 1): DealsResponse {
   };
 }
 
+function CurrentSearch() {
+  return (
+    <span data-testid="current-search" hidden>
+      {useLocation().search}
+    </span>
+  );
+}
+
 function renderDashboard(entry = '/') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: 0 } },
@@ -293,6 +303,7 @@ function renderDashboard(entry = '/') {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[entry]}>
         <App />
+        <CurrentSearch />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -309,6 +320,7 @@ beforeEach(() => {
   vi.mocked(getDeals).mockResolvedValue(dealsResponse());
   vi.mocked(getAlerts).mockResolvedValue(alertsResponse);
   vi.mocked(getStores).mockResolvedValue({ data: [steam] });
+  vi.mocked(getTaxonomy).mockResolvedValue({ data: [] });
   vi.mocked(getBestDeals).mockResolvedValue({ data: [] });
   vi.mocked(getFreeDeals).mockResolvedValue({ data: [] });
   vi.mocked(getHistoricalLows).mockResolvedValue({ data: [] });
@@ -388,6 +400,100 @@ describe('live deals dashboard', () => {
         expect.anything(),
       ),
     );
+  });
+
+  it('keeps multiple genres and platforms in the request and the URL and resets the page', async () => {
+    vi.mocked(getTaxonomy).mockImplementation(async (kind) => ({
+      data:
+        kind === 'genres'
+          ? [
+              { slug: 'indie', name: 'Indie', dealCount: 3 },
+              { slug: 'action', name: 'Action', dealCount: 2 },
+            ]
+          : [{ slug: 'pc', name: 'PC', dealCount: 5 }],
+    }));
+    const { user } = renderDashboard('/?page=3&store=steam');
+    await user.click(await screen.findByRole('checkbox', { name: 'Indie, 3 games on sale' }));
+    await user.click(screen.getByRole('checkbox', { name: 'Action, 2 games on sale' }));
+    await user.click(await screen.findByRole('checkbox', { name: 'PC, 5 games on sale' }));
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Sort deals' }), 'rating_desc');
+    await waitFor(() =>
+      expect(getDeals).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          genre: ['indie', 'action'],
+          platform: ['pc'],
+          page: 1,
+          store: 'steam',
+          sort: 'rating_desc',
+        }),
+        expect.anything(),
+      ),
+    );
+    const params = new URLSearchParams(screen.getByTestId('current-search').textContent ?? '');
+    expect(params.getAll('genre')).toEqual(['indie', 'action']);
+    expect(params.getAll('platform')).toEqual(['pc']);
+    expect(params.get('page')).toBeNull();
+  });
+
+  it('restores taxonomy selections from comma-separated and repeated URL parameters', async () => {
+    vi.mocked(getTaxonomy).mockImplementation(async (kind) => ({
+      data:
+        kind === 'genres'
+          ? [
+              { slug: 'indie', name: 'Indie', dealCount: 3 },
+              { slug: 'action', name: 'Action', dealCount: 2 },
+            ]
+          : [
+              { slug: 'pc', name: 'PC', dealCount: 5 },
+              { slug: 'linux', name: 'Linux', dealCount: 1 },
+            ],
+    }));
+    renderDashboard('/?genre=indie,action&platform=pc&platform=linux&page=2');
+    await waitFor(() => expect(screen.getAllByRole('checkbox', { checked: true })).toHaveLength(4));
+    expect(getDeals).toHaveBeenCalledWith(
+      expect.objectContaining({ genre: ['indie', 'action'], platform: ['pc', 'linux'], page: 2 }),
+      expect.anything(),
+    );
+  });
+
+  it('hides an empty genre section and renders deals with missing metadata safely', async () => {
+    vi.mocked(getTaxonomy).mockImplementation(async (kind) => ({
+      data: kind === 'platforms' ? [{ slug: 'pc', name: 'PC', dealCount: 5 }] : [],
+    }));
+    renderDashboard();
+    expect(await screen.findByRole('group', { name: 'Platforms' })).toBeTruthy();
+    expect(screen.queryByRole('group', { name: 'Genres' })).toBeNull();
+    const card = await screen.findByRole('article');
+    expect(within(card).getByText('C')).toBeTruthy();
+    expect(within(card).queryByRole('list', { name: 'Genres' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Game metadata by RAWG' }).getAttribute('href')).toBe(
+      'https://rawg.io/',
+    );
+  });
+
+  it('shows deal metadata and falls back if the cover fails to load', async () => {
+    vi.mocked(getDeals).mockResolvedValue(
+      dealsResponse([
+        {
+          ...deal,
+          coverUrl: 'https://example.com/cover.jpg',
+          releaseDate: '2018-01-25',
+          userRating: 4.2,
+          genres: [{ name: 'Indie', slug: 'indie' }],
+        },
+      ]),
+    );
+    renderDashboard();
+    const cover = await screen.findByRole('img', { name: 'Celeste' });
+    expect(cover.getAttribute('loading')).toBe('lazy');
+    expect(cover.getAttribute('width')).toBe('92');
+    expect(cover.getAttribute('height')).toBe('92');
+    expect(screen.getByText('RAWG 4.2/5')).toBeTruthy();
+    expect(screen.getByText('Indie')).toBeTruthy();
+    expect(screen.getByText('2018')).toBeTruthy();
+    fireEvent.error(cover);
+    expect(screen.queryByRole('img', { name: 'Celeste' })).toBeNull();
+    expect(within(screen.getByRole('article')).getByText('C')).toBeTruthy();
   });
 
   it('debounces search and resets to page one', async () => {
@@ -562,6 +668,54 @@ describe('live deals dashboard', () => {
     expect(alertWithBestError).toBeTruthy();
     expect(screen.queryByRole('region', { name: 'Free games' })).toBeNull();
     expect(screen.queryByRole('heading', { name: 'Celeste' })).toBeNull();
+  });
+});
+
+describe('game metadata', () => {
+  it('renders the release date and taxonomy and expands the description as plain text', async () => {
+    const markup = '<em data-embedded>Literal markup</em>';
+    const description = 'A long description. '.repeat(22) + markup;
+    vi.mocked(getGame).mockResolvedValue({
+      data: {
+        ...gameDetail.data,
+        game: {
+          ...gameDetail.data.game,
+          description,
+          coverUrl: 'https://example.com/cover.jpg',
+          releaseDate: '2018-01-25',
+          metacriticScore: 91,
+          userRating: 4.2,
+          genres: [{ name: 'Indie', slug: 'indie' }],
+          platforms: [{ name: 'PC', slug: 'pc' }],
+        },
+      },
+    });
+    const { user } = renderDashboard('/games/celeste');
+    const metadata = await screen.findByRole('region', { name: 'Game metadata' });
+    expect(within(metadata).getByText('Indie')).toBeTruthy();
+    expect(within(metadata).getByText('PC')).toBeTruthy();
+    expect(metadata.querySelector('time')?.getAttribute('datetime')).toBe('2018-01-25');
+    expect(within(metadata).getByText('RAWG rating 4.2/5')).toBeTruthy();
+    expect(within(metadata).getByText('Metacritic 91/100')).toBeTruthy();
+    expect(within(metadata).getByRole('link', { name: 'Game metadata by RAWG' })).toBeTruthy();
+    const toggle = within(metadata).getByRole('button', { name: 'Read more' });
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(metadata.textContent).not.toContain(markup);
+    await user.click(toggle);
+    expect(metadata.textContent).toContain(markup);
+    expect(metadata.querySelector('[data-embedded]')).toBeNull();
+    await user.click(within(metadata).getByRole('button', { name: 'Read less' }));
+    expect(metadata.textContent).not.toContain(markup);
+  });
+
+  it('keeps the detail usable with null metadata', async () => {
+    renderDashboard('/games/celeste');
+    expect(await screen.findByRole('heading', { name: 'Celeste' })).toBeTruthy();
+    expect(screen.queryByRole('img', { name: 'Celeste' })).toBeNull();
+    const metadata = screen.getByRole('region', { name: 'Game metadata' });
+    expect(within(metadata).queryByRole('list')).toBeNull();
+    expect(within(metadata).queryByRole('button', { name: 'Read more' })).toBeNull();
+    expect(within(metadata).getByRole('link', { name: 'Game metadata by RAWG' })).toBeTruthy();
   });
 });
 

@@ -19,6 +19,7 @@ import type {
   PriceHistoryResponse,
   RegisterRequest,
   StoreResponse,
+  TaxonomyResponse,
   WishlistAddRequest,
   WishlistEntry,
   WishlistIdsResponse,
@@ -28,7 +29,16 @@ import type {
 export type DealQueryParams = Partial<
   Pick<
     DealsQuery,
-    'q' | 'onSale' | 'minPrice' | 'maxPrice' | 'minDiscount' | 'sort' | 'page' | 'pageSize'
+    | 'q'
+    | 'onSale'
+    | 'minPrice'
+    | 'maxPrice'
+    | 'minDiscount'
+    | 'sort'
+    | 'page'
+    | 'pageSize'
+    | 'genre'
+    | 'platform'
   >
 > & { store?: string | string[] };
 
@@ -208,6 +218,10 @@ export async function getStores(signal?: AbortSignal): Promise<{ data: StoreResp
       credentials: 'include',
     }),
   );
+}
+
+export function getTaxonomy(kind: 'genres' | 'platforms', signal?: AbortSignal) {
+  return publicJson<TaxonomyResponse>('/' + kind, signal ? { signal } : {});
 }
 
 export function searchGames(q: string, signal?: AbortSignal): Promise<GameSearchResponse> {
