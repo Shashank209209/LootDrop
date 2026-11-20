@@ -219,15 +219,9 @@ export async function enrichMetadata({
           const normalizedTitle = normalizeGameTitle(game.title);
           const search = await adapter.searchGames(game.title);
           result.invalidRecords += search.invalidItems;
-          const exactIds = [
-            ...new Set(
-              search.items
-                .filter(
-                  ({ name }) => normalizedTitle && normalizeGameTitle(name) === normalizedTitle,
-                )
-                .map(({ id }) => id),
-            ),
-          ];
+          const exactIds = search.items
+            .filter(({ name }) => normalizedTitle && normalizeGameTitle(name) === normalizedTitle)
+            .map(({ id }) => id);
           const [rawgId] = exactIds;
           if (exactIds.length !== 1 || rawgId === undefined) {
             await reject(game, exactIds.length ? 'ambiguous' : 'noMatch', exactIds);

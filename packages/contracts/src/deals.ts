@@ -32,7 +32,20 @@ const storesSchema = z.preprocess(splitValues, z.array(z.string().min(1).max(170
 
 const taxonomySlugs = (limit: number) =>
   z.preprocess(
-    splitValues,
+    (value, context) => {
+      const values = splitValues(value);
+      if (values.length > limit) {
+        context.addIssue({
+          code: z.ZodIssueCode.too_big,
+          type: 'array',
+          maximum: limit,
+          inclusive: true,
+          message: `Use at most ${limit} slugs`,
+        });
+        return z.NEVER;
+      }
+      return values;
+    },
     z
       .array(
         z

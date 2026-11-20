@@ -1,4 +1,4 @@
-import { Queue, Worker } from 'bullmq';
+import { Worker } from 'bullmq';
 import pino from 'pino';
 import { env } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
@@ -58,67 +58,57 @@ if (schedulesEnabled) {
 const scheduledJob = schedulesEnabled ? await syncDealsQueue.getJobScheduler(schedulerId) : null;
 const workerOptions = { connection: redis, prefix: queuePrefix, concurrency: 1, drainDelay: 30 };
 
-const enrichmentQueueName = 'enrich-metadata';
-const enrichmentQueue = env.RAWG_API_KEY
-  ? new Queue(enrichmentQueueName, { connection: redis, prefix: queuePrefix })
-  : null;
-let enrichmentWorker: Worker | null = null;
-if (!enrichmentQueue) {
+const enrichmentJobName = 'enrich-metadata';
+if (!env.RAWG_API_KEY) {
   logger.warn(enrichmentDisabledMessage);
-} else {
-  enrichmentQueue.on('error', () => logger.error('Metadata enrichment queue error'));
-  if (schedulesEnabled) {
-    await enrichmentQueue.setGlobalConcurrency(1);
-    const every = env.ENRICH_INTERVAL_MINUTES * 60 * 1000;
-    const existing = await enrichmentQueue.getJobScheduler(enrichmentQueueName);
-    if (existing?.every !== every) {
-      await enrichmentQueue.upsertJobScheduler(
-        enrichmentQueueName,
-        { every, startDate: new Date(Date.now() + every) },
-        {
-          name: enrichmentQueueName,
-          data: {},
-          opts: {
-            attempts: 3,
-            backoff: { type: 'exponential', delay: 2_000 },
-            removeOnComplete: 20,
-            removeOnFail: 50,
-          },
+  if (schedulesEnabled) await syncDealsQueue.removeJobScheduler(enrichmentJobName);
+} else if (schedulesEnabled) {
+  const every = env.ENRICH_INTERVAL_MINUTES * 60 * 1000;
+  const existing = await syncDealsQueue.getJobScheduler(enrichmentJobName);
+  if (existing?.every !== every) {
+    await syncDealsQueue.upsertJobScheduler(
+      enrichmentJobName,
+      { every, startDate: new Date(Date.now() + every) },
+      {
+        name: enrichmentJobName,
+        data: {},
+        opts: {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 2_000 },
+          removeOnComplete: 20,
+          removeOnFail: 50,
         },
-      );
-    }
+      },
+    );
   }
-  enrichmentWorker = new Worker(
-    enrichmentQueueName,
-    async () => {
-      try {
-        const result = await runEnrichment(prisma, redis, logger);
-        const counts = {
-          examined: result.examined,
-          matched: result.matched,
-          noMatch: result.noMatch,
-          ambiguous: result.ambiguous,
-          conflicts: result.conflicts,
-          failed: result.failed,
-          requestsUsed: result.requestsUsed,
-          negativeCacheHits: result.negativeCacheHits,
-          stopped: result.stopped,
-        };
-        logger.info(counts, 'Metadata enrichment job completed');
-        return counts;
-      } catch {
-        throw new Error('Metadata enrichment run failed');
-      }
-    },
-    workerOptions,
-  );
-  enrichmentWorker.on('failed', () => logger.error('Metadata enrichment job failed'));
-  enrichmentWorker.on('error', () => logger.error('Metadata enrichment worker error'));
+}
+
+async function runEnrichmentJob() {
+  if (!env.RAWG_API_KEY) return { stopped: 'disabled' };
+  try {
+    const result = await runEnrichment(prisma, redis, logger);
+    const counts = {
+      examined: result.examined,
+      matched: result.matched,
+      noMatch: result.noMatch,
+      ambiguous: result.ambiguous,
+      conflicts: result.conflicts,
+      failed: result.failed,
+      requestsUsed: result.requestsUsed,
+      negativeCacheHits: result.negativeCacheHits,
+      stopped: result.stopped,
+    };
+    logger.info(counts, 'Metadata enrichment job completed');
+    return counts;
+  } catch {
+    throw new Error('Metadata enrichment run failed');
+  }
 }
 
 const worker = new Worker(
   'sync-deals',
   async (job) => {
+    if (job.name === enrichmentJobName) return runEnrichmentJob();
     const query = dealSyncQuerySchema.parse(job.data);
     return runSyncAndEnqueueAlerts(query, {
       runSync: (syncQuery) =>
@@ -165,10 +155,15 @@ const emailWorker = new Worker(
 );
 
 worker.on('completed', (job, result) => {
-  logger.info({ jobId: job.id, result }, 'Deal sync job completed');
+  if (job.name !== enrichmentJobName)
+    logger.info({ jobId: job.id, result }, 'Deal sync job completed');
 });
 worker.on('failed', (job, error) => {
-  logger.error({ jobId: job?.id, err: error }, 'Deal sync job failed');
+  if (job?.name === enrichmentJobName) {
+    logger.error({ jobId: job.id }, 'Metadata enrichment job failed');
+  } else {
+    logger.error({ jobId: job?.id, err: error }, 'Deal sync job failed');
+  }
 });
 worker.on('error', (error) => {
   logger.error({ err: error }, 'Deal sync worker error');
@@ -195,8 +190,6 @@ emailWorker.on('error', (error) => {
 });
 
 async function shutdown() {
-  await enrichmentWorker?.close();
-  await enrichmentQueue?.close();
   await emailWorker.close();
   await alertWorker.close();
   await worker.close();

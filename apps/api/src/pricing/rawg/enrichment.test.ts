@@ -165,6 +165,14 @@ describe('RAWG enrichment', () => {
     expect(logger.warn).toHaveBeenCalledOnce();
   });
 
+  it('treats multiple exact response records as ambiguous even if they repeat an ID', async () => {
+    const { run, adapter } = setup();
+    const exact = rawgSearchFixture.results.slice(0, 1);
+    adapter.searchGames.mockResolvedValue({ items: [...exact, ...exact], invalidItems: 0 });
+    await expect(run()).resolves.toMatchObject({ ambiguous: 1, matched: 0 });
+    expect(adapter.getGame).not.toHaveBeenCalled();
+  });
+
   it('counts a uniqueness race as a conflict', async () => {
     const { run, tx } = setup();
     tx.game.update.mockRejectedValue(
