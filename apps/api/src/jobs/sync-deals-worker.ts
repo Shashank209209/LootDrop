@@ -1,8 +1,8 @@
-import { Worker } from 'bullmq';
+import { Queue, Worker } from 'bullmq';
 import pino from 'pino';
 import { env } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
-import { redis } from '../db/redis.js';
+import { queuePrefix, redis } from '../db/redis.js';
 import { CheapSharkAdapter } from '../pricing/cheapshark/adapter.js';
 import { dealSyncQuerySchema } from '../pricing/contracts.js';
 import { RedisJsonCache } from '../pricing/cache.js';
@@ -21,6 +21,7 @@ import { runAlertEvaluation } from '../alerts/evaluation-runner.js';
 import { runSyncAndEnqueueAlerts } from '../alerts/sync-handler.js';
 import { createMailer } from '../alerts/mailer.js';
 import { runAlertEmail } from '../alerts/email-runner.js';
+import { enrichmentDisabledMessage, runEnrichment } from '../pricing/rawg/run-enrichment.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const mailer = createMailer({
@@ -37,21 +38,83 @@ const adapter = new CheapSharkAdapter({
 
 const schedulerId = 'cheapshark-deals-sync';
 const intervalMilliseconds = env.DEAL_SYNC_INTERVAL_MINUTES * 60 * 1000;
-const existingScheduler = await syncDealsQueue.getJobScheduler(schedulerId);
-if (!existingScheduler || existingScheduler.every !== intervalMilliseconds) {
-  await syncDealsQueue.upsertJobScheduler(
-    schedulerId,
-    {
-      every: intervalMilliseconds,
-      startDate: new Date(Date.now() + intervalMilliseconds),
-    },
-    {
-      name: 'scheduled-deal-sync',
-      data: dealSyncQuerySchema.parse({ pageNumber: 0, pageSize: 20, sortBy: 'DealRating' }),
-    },
-  );
+const schedulesEnabled = process.env.DISABLE_REPEATABLE_SCHEDULES !== '1';
+if (schedulesEnabled) {
+  const existingScheduler = await syncDealsQueue.getJobScheduler(schedulerId);
+  if (!existingScheduler || existingScheduler.every !== intervalMilliseconds) {
+    await syncDealsQueue.upsertJobScheduler(
+      schedulerId,
+      {
+        every: intervalMilliseconds,
+        startDate: new Date(Date.now() + intervalMilliseconds),
+      },
+      {
+        name: 'scheduled-deal-sync',
+        data: dealSyncQuerySchema.parse({ pageNumber: 0, pageSize: 20, sortBy: 'DealRating' }),
+      },
+    );
+  }
 }
-const scheduledJob = await syncDealsQueue.getJobScheduler(schedulerId);
+const scheduledJob = schedulesEnabled ? await syncDealsQueue.getJobScheduler(schedulerId) : null;
+const workerOptions = { connection: redis, prefix: queuePrefix, concurrency: 1, drainDelay: 30 };
+
+const enrichmentQueueName = 'enrich-metadata';
+const enrichmentQueue = env.RAWG_API_KEY
+  ? new Queue(enrichmentQueueName, { connection: redis, prefix: queuePrefix })
+  : null;
+let enrichmentWorker: Worker | null = null;
+if (!enrichmentQueue) {
+  logger.warn(enrichmentDisabledMessage);
+} else {
+  enrichmentQueue.on('error', () => logger.error('Metadata enrichment queue error'));
+  if (schedulesEnabled) {
+    await enrichmentQueue.setGlobalConcurrency(1);
+    const every = env.ENRICH_INTERVAL_MINUTES * 60 * 1000;
+    const existing = await enrichmentQueue.getJobScheduler(enrichmentQueueName);
+    if (existing?.every !== every) {
+      await enrichmentQueue.upsertJobScheduler(
+        enrichmentQueueName,
+        { every, startDate: new Date(Date.now() + every) },
+        {
+          name: enrichmentQueueName,
+          data: {},
+          opts: {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 2_000 },
+            removeOnComplete: 20,
+            removeOnFail: 50,
+          },
+        },
+      );
+    }
+  }
+  enrichmentWorker = new Worker(
+    enrichmentQueueName,
+    async () => {
+      try {
+        const result = await runEnrichment(prisma, redis, logger);
+        const counts = {
+          examined: result.examined,
+          matched: result.matched,
+          noMatch: result.noMatch,
+          ambiguous: result.ambiguous,
+          conflicts: result.conflicts,
+          failed: result.failed,
+          requestsUsed: result.requestsUsed,
+          negativeCacheHits: result.negativeCacheHits,
+          stopped: result.stopped,
+        };
+        logger.info(counts, 'Metadata enrichment job completed');
+        return counts;
+      } catch {
+        throw new Error('Metadata enrichment run failed');
+      }
+    },
+    workerOptions,
+  );
+  enrichmentWorker.on('failed', () => logger.error('Metadata enrichment job failed'));
+  enrichmentWorker.on('error', () => logger.error('Metadata enrichment worker error'));
+}
 
 const worker = new Worker(
   'sync-deals',
@@ -70,7 +133,7 @@ const worker = new Worker(
         enqueueAlertEvaluation({ scrapeRunId, listingIds: checkedListingIds }),
     });
   },
-  { connection: redis, concurrency: 1, drainDelay: 30 },
+  workerOptions,
 );
 
 const alertWorker = new Worker(
@@ -83,7 +146,7 @@ const alertWorker = new Worker(
       logger,
     });
   },
-  { connection: redis, concurrency: 1, drainDelay: 30 },
+  workerOptions,
 );
 
 const emailWorker = new Worker(
@@ -98,7 +161,7 @@ const emailWorker = new Worker(
       maxAttempts: job.opts.attempts ?? 1,
     });
   },
-  { connection: redis, concurrency: 1, drainDelay: 30 },
+  workerOptions,
 );
 
 worker.on('completed', (job, result) => {
@@ -132,6 +195,8 @@ emailWorker.on('error', (error) => {
 });
 
 async function shutdown() {
+  await enrichmentWorker?.close();
+  await enrichmentQueue?.close();
   await emailWorker.close();
   await alertWorker.close();
   await worker.close();
@@ -153,5 +218,7 @@ logger.info(
     maxDealsPerRun: env.CHEAPSHARK_MAX_PAGES * 20,
     nextScheduledRun: scheduledJob?.next ? new Date(scheduledJob.next).toISOString() : null,
   },
-  'Deal sync worker ready with a bounded recurring schedule',
+  schedulesEnabled
+    ? 'Deal sync worker ready with a bounded recurring schedule'
+    : 'Deal sync worker ready without recurring schedules',
 );
