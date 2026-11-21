@@ -21,6 +21,8 @@ import {
   historicalLowsResponseSchema,
   loginRequestSchema,
   meResponseSchema,
+  preferenceSchema,
+  ratesResponseSchema,
   notificationsQuerySchema,
   notificationsResponseSchema,
   unreadCountResponseSchema,
@@ -228,6 +230,27 @@ registry.registerPath({
   responses: {
     200: response(alertsResponseSchema, 'Paginated alerts with current prices'),
     400: response(errorSchema, 'Invalid pagination'),
+    401: response(errorSchema, 'Authentication required'),
+  },
+});
+registry.registerPath({
+  method: 'get',
+  path: '/api/v1/rates',
+  summary: 'Get USD reference exchange rates',
+  responses: {
+    200: response(ratesResponseSchema, 'Current or last known rates'),
+    503: response(errorSchema, 'Exchange rates unavailable'),
+  },
+});
+registry.registerPath({
+  method: 'patch',
+  path: '/api/v1/me/preferences',
+  summary: 'Save the current user display currency',
+  security: [{ bearerAuth: [] }],
+  request: { body: { content: { 'application/json': { schema: preferenceSchema } } } },
+  responses: {
+    200: response(preferenceSchema, 'Saved display currency'),
+    400: response(errorSchema, 'Invalid display currency preference'),
     401: response(errorSchema, 'Authentication required'),
   },
 });

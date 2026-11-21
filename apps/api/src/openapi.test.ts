@@ -27,6 +27,8 @@ describe('OpenAPI document', () => {
         '/api/v1/games/{slug}/price-history',
         '/api/v1/genres',
         '/api/v1/platforms',
+        '/api/v1/rates',
+        '/api/v1/me/preferences',
         '/api/v1/health',
         '/api/v1/stores',
         '/api/v1/wishlist',

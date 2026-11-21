@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { displayCurrencySchema } from './currency.js';
 
 export const authUserSchema = z.object({
   id: z.string().uuid(),
@@ -32,7 +33,7 @@ export const refreshResponseSchema = z.object({
 });
 
 export const meResponseSchema = z.object({
-  user: authUserSchema,
+  user: authUserSchema.extend({ preferredCurrency: displayCurrencySchema }),
 });
 
 export type AuthUser = z.infer<typeof authUserSchema>;
