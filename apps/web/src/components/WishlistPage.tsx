@@ -5,13 +5,7 @@ import { WishlistButton } from './WishlistButton.js';
 import { getWishlist } from '../lib/api-client.js';
 import { SetAlertButton } from './SetAlertButton.js';
 
-function formatCurrency(value: number, currency: string): string {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
-  } catch {
-    return `${currency} ${value.toFixed(2)}`;
-  }
-}
+import { DisplayPrice } from './DisplayPrice.js';
 
 export function WishlistPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -72,18 +66,18 @@ export function WishlistPage() {
                     {entry.bestListing ? (
                       <div className="wishlist-price">
                         <strong>
-                          {formatCurrency(
-                            entry.bestListing.currentPrice,
-                            entry.bestListing.currency,
-                          )}
+                          <DisplayPrice
+                            amount={entry.bestListing.currentPrice}
+                            original={entry.bestListing.currency}
+                          />
                         </strong>
                         {entry.bestListing.regularPrice !== null ? (
                           <span>
                             Regular{' '}
-                            {formatCurrency(
-                              entry.bestListing.regularPrice,
-                              entry.bestListing.currency,
-                            )}
+                            <DisplayPrice
+                              amount={entry.bestListing.regularPrice}
+                              original={entry.bestListing.currency}
+                            />
                           </span>
                         ) : null}
                         {entry.bestListing.discountPercent !== null ? (

@@ -1,9 +1,46 @@
 // @vitest-environment jsdom
 
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { ReactNode } from 'react';
 import type { PriceHistoryResponse } from '@dealhunter/contracts';
 import { PriceHistoryChart } from './PriceHistoryChart.js';
+
+const chart = vi.hoisted(() => ({ data: vi.fn(), marker: vi.fn(), axis: vi.fn() }));
+
+vi.mock('recharts', () => ({
+  ResponsiveContainer: ({ children }: { children: ReactNode }) => <>{children}</>,
+  LineChart: ({ children, data }: { children: ReactNode; data: unknown }) => {
+    chart.data(data);
+    return <>{children}</>;
+  },
+  CartesianGrid: () => null,
+  XAxis: () => null,
+  YAxis: ({ tickFormatter }: { tickFormatter: (tick: number) => string }) => {
+    chart.axis(tickFormatter(424.15));
+    return null;
+  },
+  ReferenceLine: ({ y }: { y: number }) => {
+    chart.marker(y);
+    return null;
+  },
+  Line: () => null,
+  Tooltip: ({
+    formatter,
+  }: {
+    formatter: (
+      value: number,
+      name: string,
+      item: { dataKey: string; payload: Record<string, number> },
+    ) => [ReactNode, string];
+  }) => {
+    const [price] = formatter(424.15, 'Steam', {
+      dataKey: 'listing-1',
+      payload: { 'original:listing-1': 4.99 },
+    });
+    return <div data-testid="chart-tooltip-price">{price}</div>;
+  },
+}));
 
 globalThis.ResizeObserver = class {
   observe() {}
@@ -68,5 +105,38 @@ describe('PriceHistoryChart', () => {
     render(<PriceHistoryChart history={history([])} />);
     expect(screen.getByText('Price history builds up as we keep tracking this game.')).toBeTruthy();
     expect(screen.queryByTestId('price-chart-USD')).toBeNull();
+  });
+
+  it('converts points, axes and tooltips while locating the original minimum', () => {
+    const lowestDate = '2026-01-02T00:00:00.000Z';
+    render(
+      <PriceHistoryChart
+        displayCurrency="INR"
+        rates={{ USD: 1, INR: 85, EUR: 0.9 }}
+        history={history([
+          {
+            capturedAt: '2026-01-01T00:00:00.000Z',
+            price: 10,
+            regularPrice: null,
+            discountPercent: null,
+          },
+          { capturedAt: lowestDate, price: 4.99, regularPrice: null, discountPercent: null },
+        ])}
+      />,
+    );
+    expect(
+      screen.getByRole('heading', { name: 'INR · approximate (originally USD)' }),
+    ).toBeTruthy();
+    expect(chart.data).toHaveBeenLastCalledWith([
+      expect.objectContaining({ 'listing-1': 850 }),
+      expect.objectContaining({
+        capturedAt: lowestDate,
+        'listing-1': 424.15,
+        'original:listing-1': 4.99,
+      }),
+    ]);
+    expect(chart.marker).toHaveBeenLastCalledWith(424.15);
+    expect(chart.axis).toHaveBeenLastCalledWith('₹424.15');
+    expect(screen.getByTitle('$4.99 USD').textContent).toBe('≈₹424.15');
   });
 });

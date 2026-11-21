@@ -7,6 +7,8 @@ import { PriceHistoryChart } from './PriceHistoryChart.js';
 import { WishlistButton } from './WishlistButton.js';
 import { SetAlertButton } from './SetAlertButton.js';
 import { GameCover, GameDescription, MetadataTags, RawgAttribution } from './GameMedia.js';
+import { DisplayPrice } from './DisplayPrice.js';
+import { useCurrency } from './CurrencyProvider.js';
 
 const historyRanges = ['30d', '90d', '1y', 'all'] as const;
 const releaseDateFormat = new Intl.DateTimeFormat(undefined, {
@@ -16,19 +18,12 @@ const releaseDateFormat = new Intl.DateTimeFormat(undefined, {
 type HistoryRange = (typeof historyRanges)[number];
 type ListingSort = 'price' | 'store';
 
-function formatCurrency(value: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
-  } catch {
-    return `${currency} ${value.toFixed(2)}`;
-  }
-}
-
 function isNotFound(error: unknown) {
   return error instanceof ApiError && error.status === 404;
 }
 
 export function GameDetailPage() {
+  const { currency, rates } = useCurrency();
   const { slug = '' } = useParams();
   const location = useLocation();
   const [range, setRange] = useState<HistoryRange>('90d');
@@ -123,6 +118,7 @@ export function GameDetailPage() {
 
   const summaryCurrency =
     new Set(listings.map((listing) => listing.currency)).size === 1 ? listings[0]?.currency : null;
+  const bestListing = listings.find((listing) => listing.id === game.summary.bestListingId);
   const {
     title,
     coverUrl,
@@ -149,13 +145,33 @@ export function GameDetailPage() {
             <h1>{title}</h1>
             <p>
               {game.summary.snapshotCount} recorded price observations
-              {game.summary.lowestRecordedPrice !== null && summaryCurrency
-                ? ` · Lowest recorded ${formatCurrency(game.summary.lowestRecordedPrice, summaryCurrency)}`
-                : ''}
-              {game.summary.highestRecordedPrice !== null && summaryCurrency
-                ? ` · Highest recorded ${formatCurrency(game.summary.highestRecordedPrice, summaryCurrency)}`
-                : ''}
+              {game.summary.lowestRecordedPrice !== null && summaryCurrency ? (
+                <>
+                  {' '}
+                  · Lowest recorded{' '}
+                  <DisplayPrice
+                    amount={game.summary.lowestRecordedPrice}
+                    original={summaryCurrency}
+                  />
+                </>
+              ) : null}
+              {game.summary.highestRecordedPrice !== null && summaryCurrency ? (
+                <>
+                  {' '}
+                  · Highest recorded{' '}
+                  <DisplayPrice
+                    amount={game.summary.highestRecordedPrice}
+                    original={summaryCurrency}
+                  />
+                </>
+              ) : null}
             </p>
+            {bestListing ? (
+              <p>
+                Best price{' '}
+                <DisplayPrice amount={bestListing.currentPrice} original={bestListing.currency} />
+              </p>
+            ) : null}
             <WishlistButton gameId={game.game.id} gameTitle={game.game.title} />
             <SetAlertButton
               gameId={game.game.id}
@@ -236,11 +252,15 @@ export function GameDetailPage() {
                           <span className="cheapest-label">Lowest in {listing.currency}</span>
                         ) : null}
                       </th>
-                      <td>{formatCurrency(listing.currentPrice, listing.currency)}</td>
                       <td>
-                        {listing.regularPrice === null
-                          ? '—'
-                          : formatCurrency(listing.regularPrice, listing.currency)}
+                        <DisplayPrice amount={listing.currentPrice} original={listing.currency} />
+                      </td>
+                      <td>
+                        {listing.regularPrice === null ? (
+                          '—'
+                        ) : (
+                          <DisplayPrice amount={listing.regularPrice} original={listing.currency} />
+                        )}
                       </td>
                       <td>
                         {listing.discountPercent === null ? '—' : `${listing.discountPercent}%`}
@@ -263,7 +283,7 @@ export function GameDetailPage() {
           <div className="panel-header">
             <div>
               <h2 id="price-history-title">Price history</h2>
-              <p>Prices are shown in separate charts for each currency.</p>
+              <p>Each chart groups listings by their original currency.</p>
             </div>
             <div className="range-toggle" aria-label="Price history range">
               {historyRanges.map((item) => (
@@ -295,7 +315,11 @@ export function GameDetailPage() {
           ) : historyQuery.isPending ? (
             <p role="status">Loading price history…</p>
           ) : historyQuery.data ? (
-            <PriceHistoryChart history={historyQuery.data} />
+            <PriceHistoryChart
+              history={historyQuery.data}
+              displayCurrency={currency}
+              rates={rates?.rates ?? null}
+            />
           ) : null}
         </section>
       </div>

@@ -5,7 +5,7 @@ import { dealSortOptions } from '@dealhunter/contracts';
 import { AuthPage } from './auth/AuthPage.js';
 import { AuthProvider, useAuth } from './auth/AuthProvider.js';
 import { AccountMenu } from './components/AccountMenu.js';
-import { CurrencyProvider } from './components/CurrencyProvider.js';
+import { CurrencyProvider, useCurrency } from './components/CurrencyProvider.js';
 import { CuratedDealSection } from './components/CuratedDealSection.js';
 import { DealCard } from './components/DealCard.js';
 import { GameAutocomplete } from './components/GameAutocomplete.js';
@@ -46,6 +46,8 @@ function readSlugs(params: URLSearchParams, key: 'genre' | 'platform') {
 
 function Dashboard() {
   const { state } = useAuth();
+  const { currency } = useCurrency();
+  const priceUnit = currency === 'USD' ? '' : ' (USD)';
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}`;
@@ -258,9 +260,9 @@ function Dashboard() {
             </select>
           </label>
           <label>
-            Min price
+            Min price{priceUnit}
             <input
-              aria-label="Minimum price"
+              aria-label={'Minimum price' + priceUnit}
               type="number"
               min="0"
               step="0.01"
@@ -269,9 +271,9 @@ function Dashboard() {
             />
           </label>
           <label>
-            Max price
+            Max price{priceUnit}
             <input
-              aria-label="Maximum price"
+              aria-label={'Maximum price' + priceUnit}
               type="number"
               min="0"
               step="0.01"
@@ -547,6 +549,14 @@ export default function AppRouter() {
       <CurrencyProvider>
         <AppRoutes />
         <footer className="site-footer">
+          <p className="currency-footnote">
+            Prices in INR and EUR are approximate conversions of USD store prices. Stores may charge
+            different regional prices. Reference rates from the{' '}
+            <a href="https://www.ecb.europa.eu/stats/policy_and_exchange_rates/euro_reference_exchange_rates/html/index.en.html">
+              European Central Bank
+            </a>{' '}
+            via <a href="https://frankfurter.dev/">Frankfurter</a>.
+          </p>
           <RawgAttribution />
         </footer>
       </CurrencyProvider>

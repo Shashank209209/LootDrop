@@ -7,6 +7,7 @@ import {
 } from '@dealhunter/contracts';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ApiError, createAlert, getGame, updateAlert } from '../lib/api-client.js';
+import { DisplayPrice } from './DisplayPrice.js';
 
 type GameListing = GameDetailResponse['data']['listings'][number];
 type AlertKind = CreateAlertRequest['alertType'];
@@ -17,10 +18,6 @@ const alertKinds: Array<{ value: AlertKind; label: string }> = [
   { value: 'ANY_SALE', label: 'Any sale starts' },
   { value: 'HISTORICAL_LOW', label: 'New all-time low' },
 ];
-
-function formatCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
-}
 
 function initialKind(alert?: AlertResponse): AlertKind {
   return alert?.alertType ?? 'PRICE_BELOW';
@@ -326,9 +323,15 @@ export function AlertDialog({
             </label>
           ) : null}
           <p className="alert-current-price" aria-live="polite">
-            {current
-              ? `Current price: ${formatCurrency(current.currentPrice, current.currency)} at ${current.store.name}`
-              : 'No current price is available for this store.'}
+            {current ? (
+              <>
+                Current price:{' '}
+                <DisplayPrice amount={current.currentPrice} original={current.currency} /> at{' '}
+                {current.store.name}
+              </>
+            ) : (
+              'No current price is available for this store.'
+            )}
             {alreadyMet ? ' — already met at the current price.' : ''}
           </p>
           {fieldError ? (

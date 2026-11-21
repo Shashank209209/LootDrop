@@ -108,7 +108,7 @@ export function useCurrency() {
 }
 
 export function CurrencySelector() {
-  const { currency, select, pending, saveFailed } = useCurrency();
+  const { currency, select, pending, saveFailed, ratesUnavailable } = useCurrency();
   return (
     <div className="currency-control">
       <label>
@@ -128,6 +128,11 @@ export function CurrencySelector() {
           ))}
         </select>
       </label>
+      {ratesUnavailable ? (
+        <span className="currency-notice" role="status">
+          Exchange rates unavailable, showing original prices
+        </span>
+      ) : null}
       {saveFailed ? (
         <span role="alert" className="inline-error">
           Currency preference could not be saved.

@@ -2,14 +2,7 @@ import { Link } from 'react-router-dom';
 import type { DealResponse } from '@dealhunter/contracts';
 import { WishlistButton } from './WishlistButton.js';
 import { GameCover, MetadataTags } from './GameMedia.js';
-
-function formatCurrency(amount: number, currency: string) {
-  try {
-    return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(amount);
-  } catch {
-    return `${currency} ${amount.toFixed(2)}`;
-  }
-}
+import { DisplayPrice } from './DisplayPrice.js';
 
 export function DealCard({
   deal,
@@ -59,13 +52,17 @@ export function DealCard({
         </div>
         {lowestRecordedPrice !== undefined ? (
           <p className="record-low-label">
-            Historical low {formatCurrency(lowestRecordedPrice, deal.currency)}
+            Historical low <DisplayPrice amount={lowestRecordedPrice} original={deal.currency} />
           </p>
         ) : null}
         <div className="price-row">
-          <strong>{formatCurrency(deal.currentPrice, deal.currency)}</strong>
+          <strong>
+            <DisplayPrice amount={deal.currentPrice} original={deal.currency} />
+          </strong>
           {deal.regularPrice !== null && deal.regularPrice !== deal.currentPrice ? (
-            <span>{formatCurrency(deal.regularPrice, deal.currency)}</span>
+            <span>
+              <DisplayPrice amount={deal.regularPrice} original={deal.currency} />
+            </span>
           ) : null}
         </div>
         <a href={deal.dealUrl} target="_blank" rel="noopener noreferrer">

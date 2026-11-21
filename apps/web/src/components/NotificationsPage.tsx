@@ -7,9 +7,7 @@ import {
   markNotificationRead,
 } from '../lib/api-client.js';
 
-function formatCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
-}
+import { DisplayPrice } from './DisplayPrice.js';
 
 export function NotificationsPage() {
   const queryClient = useQueryClient();
@@ -87,7 +85,10 @@ export function NotificationsPage() {
                   >
                     <strong>{notification.game.title}</strong>
                     <span>
-                      {formatCurrency(notification.priceAtTrigger, notification.currency)}
+                      <DisplayPrice
+                        amount={notification.priceAtTrigger}
+                        original={notification.currency}
+                      />
                       {notification.store ? ` at ${notification.store.name}` : ''}
                     </span>
                     <time dateTime={notification.createdAt}>

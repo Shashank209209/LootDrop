@@ -6,9 +6,8 @@ import { AccountMenu } from './AccountMenu.js';
 import { AlertDialog } from './AlertDialog.js';
 import { deleteAlert, getAlerts, updateAlert } from '../lib/api-client.js';
 
-function formatCurrency(value: number, currency: string): string {
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency }).format(value);
-}
+import { formatCurrency } from '../lib/currency.js';
+import { DisplayPrice } from './DisplayPrice.js';
 
 function describeRule(alert: AlertResponse): string {
   const store = alert.store?.name ?? 'Any store';
@@ -144,9 +143,14 @@ export function AlertsPage() {
                         {status}
                       </p>
                       <strong>
-                        {alert.current
-                          ? formatCurrency(alert.current.currentPrice, alert.current.currency)
-                          : 'No current price'}
+                        {alert.current ? (
+                          <DisplayPrice
+                            amount={alert.current.currentPrice}
+                            original={alert.current.currency}
+                          />
+                        ) : (
+                          'No current price'
+                        )}
                       </strong>
                     </div>
                     <div className="alert-entry-actions">

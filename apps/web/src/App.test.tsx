@@ -421,6 +421,66 @@ describe('display currency preference', () => {
   });
 });
 
+describe('display-only prices', () => {
+  it.each([
+    ['/', '$9.99', '≈₹849.15'],
+    ['/games/celeste', '$4.99', '≈₹424.15'],
+    ['/wishlist', '$9.99', '≈₹849.15'],
+    ['/alerts', '$4.99', '≈₹424.15'],
+    ['/notifications', '$4.99', '≈₹424.15'],
+  ])('shows the conversion and original price on %s', async (route, original, approximate) => {
+    vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'INR' } });
+    const { user } = renderDashboard(route);
+    const converted = await screen.findAllByTitle(original + ' USD');
+    expect(converted.some((element) => element.textContent === approximate)).toBe(true);
+    const selector = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' });
+    await user.selectOptions(selector, 'USD');
+    await waitFor(() => expect(screen.queryAllByTitle(original + ' USD')).toHaveLength(0));
+    expect(screen.getAllByText(original, { exact: false }).length).toBeGreaterThan(0);
+  });
+
+  it('uses deal-card conversions in curated sections and leaves free offers at zero', async () => {
+    vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'INR' } });
+    vi.mocked(getBestDeals).mockResolvedValue({ data: [deal] });
+    vi.mocked(getFreeDeals).mockResolvedValue({ data: [{ ...deal, currentPrice: 0 }] });
+    renderDashboard();
+    const free = await screen.findByRole('region', { name: 'Free games' });
+    expect((await within(free).findByTitle('$0.00 USD')).textContent).toBe('≈₹0.00');
+    const best = screen.getByRole('region', { name: 'Best deals' });
+    expect((await within(best).findByTitle('$9.99 USD')).textContent).toBe('≈₹849.15');
+    expect(screen.getByText(/Prices in INR and EUR are approximate conversions/)).toBeTruthy();
+    expect(screen.getByRole('link', { name: 'European Central Bank' })).toBeTruthy();
+  });
+
+  it('shows the original prices and a single notice when rates are unavailable', async () => {
+    vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'INR' } });
+    vi.mocked(getRates).mockRejectedValueOnce(new Error('offline'));
+    renderDashboard();
+    expect(
+      await screen.findAllByText('Exchange rates unavailable, showing original prices'),
+    ).toHaveLength(1);
+    expect(await screen.findByText('$9.99')).toBeTruthy();
+    expect(screen.queryAllByTitle('$9.99 USD')).toHaveLength(0);
+  });
+
+  it('keeps price filters and alert targets in the original listing currency', async () => {
+    vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'INR' } });
+    const { user } = renderDashboard();
+    const maxPrice = await screen.findByLabelText('Maximum price (USD)');
+    fireEvent.change(maxPrice, { target: { value: '12.50' } });
+    await waitFor(() =>
+      expect(getDeals).toHaveBeenLastCalledWith(
+        expect.objectContaining({ maxPrice: 12.5 }),
+        expect.anything(),
+      ),
+    );
+    await user.click(screen.getByRole('link', { name: 'Alerts' }));
+    await user.click(await screen.findByRole('button', { name: 'Edit' }));
+    const target = await screen.findByLabelText<HTMLInputElement>('Target price (USD)');
+    expect(target.value).toBe('3.99');
+  });
+});
+
 describe('live deals dashboard', () => {
   it('renders deals returned by the API', async () => {
     const { user } = renderDashboard();

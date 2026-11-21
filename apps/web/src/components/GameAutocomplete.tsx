@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { searchGames } from '../lib/api-client.js';
+import { DisplayPrice } from './DisplayPrice.js';
 
 export function GameAutocomplete() {
   const [input, setInput] = useState('');
@@ -103,10 +104,7 @@ export function GameAutocomplete() {
                   <span>{game.title}</span>
                   {game.bestPrice !== null && game.currency ? (
                     <span>
-                      {new Intl.NumberFormat(undefined, {
-                        style: 'currency',
-                        currency: game.currency,
-                      }).format(game.bestPrice)}
+                      <DisplayPrice amount={game.bestPrice} original={game.currency} />
                     </span>
                   ) : null}
                 </li>
