@@ -195,9 +195,9 @@ export async function runCheapSharkDealSync(
             slug: bySlug ? `cheapshark-${store.cheapsharkStoreId}-${store.slug}` : store.slug,
           },
         });
-      } catch (error) {
+      } catch {
         itemsFailed += 1;
-        logger.warn({ err: error, storeId: store.cheapsharkStoreId }, 'Failed to sync store');
+        logger.warn('Failed to sync store');
       }
     }
 
@@ -220,9 +220,9 @@ export async function runCheapSharkDealSync(
           const deal = normalizeCheapSharkDeal(rawDeal);
           checkedListingIds.add(await persistDeal(database, deal));
           itemsProcessed += 1;
-        } catch (error) {
+        } catch {
           itemsFailed += 1;
-          logger.warn({ err: error, dealId: rawDeal.dealID }, 'Failed to ingest deal');
+          logger.warn('Failed to ingest deal');
         }
       }
 
@@ -255,7 +255,7 @@ export async function runCheapSharkDealSync(
   } catch (error) {
     itemsFailed += 1;
     logger.error(
-      { err: error, scrapeRunId: scrapeRun.id, pagesFetched, itemsProcessed, itemsFailed },
+      { scrapeRunId: scrapeRun.id, pagesFetched, itemsProcessed, itemsFailed },
       'CheapShark deal sync failed',
     );
     await database.scrapeRun.update({
@@ -265,7 +265,7 @@ export async function runCheapSharkDealSync(
         status: 'FAILED',
         itemsProcessed,
         itemsFailed,
-        errorMessage: error instanceof Error ? error.message.slice(0, 2000) : 'Unknown sync error',
+        errorMessage: 'Deal synchronization failed',
       },
     });
     throw error;

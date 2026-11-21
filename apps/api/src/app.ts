@@ -1,10 +1,9 @@
 import cors from 'cors';
-import express, { type ErrorRequestHandler } from 'express';
+import express from 'express';
 import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import pino from 'pino';
-import { pinoHttp } from 'pino-http';
 import { Redis } from 'ioredis';
 import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
@@ -17,10 +16,10 @@ import { createAuthRouter } from './auth/auth-router.js';
 import { createWishlistRouter } from './wishlist/wishlist-router.js';
 import { createAlertsRouter } from './alerts/alerts-router.js';
 import { createNotificationsRouter } from './alerts/notifications-router.js';
-import { sendApiError } from './http/api-error.js';
 import { createCurrencyRouter } from './currency/currency-router.js';
 import { RatesService } from './currency/rates-service.js';
 import { RedisJsonCache } from './pricing/cache.js';
+import { requestLogger, requestErrorHandler } from './http/request-safety.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const app = express();
@@ -36,23 +35,11 @@ const ratesPrefix =
 const rates = new RatesService(new RedisJsonCache(ratesRedis, ratesPrefix), logger);
 
 app.disable('x-powered-by');
+app.set('trust proxy', env.TRUST_PROXY || false);
 app.use(helmet());
 app.use(cors({ origin: env.WEB_ORIGIN, credentials: true }));
+app.use(requestLogger(logger));
 app.use(express.json({ limit: '1mb' }));
-app.use(
-  pinoHttp({
-    logger,
-    serializers: {
-      req: (request) => ({
-        id: request.id,
-        method: request.method,
-        url: request.url,
-        remoteAddress: request.remoteAddress,
-      }),
-      res: (response) => ({ statusCode: response.statusCode }),
-    },
-  }),
-);
 app.use(
   '/api',
   rateLimit({
@@ -88,6 +75,7 @@ app.use(
   createAuthRouter(prisma, {
     accessSecret: env.JWT_ACCESS_SECRET,
     issuer: env.JWT_ISSUER,
+    webOrigin: env.WEB_ORIGIN,
     cookieSecure: env.AUTH_COOKIE_SECURE,
     cookieSameSite: env.AUTH_COOKIE_SAME_SITE,
     rateLimitWindowMs: env.AUTH_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
@@ -104,30 +92,6 @@ app.use((_request, response) => {
   });
 });
 
-const errorHandler: ErrorRequestHandler = (error, _request, response, next) => {
-  if (response.headersSent) {
-    next(error);
-    return;
-  }
-
-  if (error instanceof SyntaxError && 'body' in error) {
-    sendApiError(response, 400, 'INVALID_REQUEST', 'Request body must be valid JSON');
-    return;
-  }
-
-  logger.error(
-    { errorName: error instanceof Error ? error.name : 'UnknownError' },
-    'Unhandled request error',
-  );
-  response.status(500).json({
-    error: {
-      code: 'INTERNAL_SERVER_ERROR',
-      message: 'An unexpected error occurred',
-      details: null,
-    },
-  });
-};
-
-app.use(errorHandler);
+app.use(requestErrorHandler(logger));
 
 export { app };

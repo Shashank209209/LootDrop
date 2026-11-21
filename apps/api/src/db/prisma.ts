@@ -4,11 +4,7 @@ const globalForPrisma = globalThis as typeof globalThis & {
   dealHunterPrisma?: PrismaClient;
 };
 
-export const prisma =
-  globalForPrisma.dealHunterPrisma ??
-  new PrismaClient({
-    log: process.env.NODE_ENV === 'development' ? ['warn', 'error'] : ['error'],
-  });
+export const prisma = globalForPrisma.dealHunterPrisma ?? new PrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.dealHunterPrisma = prisma;

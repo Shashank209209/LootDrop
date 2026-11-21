@@ -68,10 +68,7 @@ export async function runAlertEmail(
         where: { id: notification.id, status: 'PENDING' },
         data: { status: 'FAILED', message: 'Email delivery failed' },
       });
-      input.logger.error(
-        { notificationId, errorName: error instanceof Error ? error.name : 'UnknownError' },
-        'Alert email delivery failed after retries',
-      );
+      input.logger.error({ notificationId }, 'Alert email delivery failed after retries');
     }
     throw error;
   }

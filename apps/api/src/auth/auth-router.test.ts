@@ -9,6 +9,7 @@ import { signAccessToken } from './jwt.js';
 
 const accessSecret = 'unit-test-access-secret-longer-than-thirty-two-characters';
 const issuer = 'lootdrop-test';
+const webOrigin = 'https://web.example.test';
 const knownPassword = 'correct-test-password';
 const knownUserId = '20da2e1d-c56e-4874-8e7c-f5d15d38d502';
 const knownEmail = 'known@example.test';
@@ -160,6 +161,7 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
     createAuthRouter(database, {
       accessSecret,
       issuer,
+      webOrigin,
       cookieSecure: false,
       cookieSameSite: 'lax',
       rateLimitWindowMs: 60_000,
@@ -186,8 +188,11 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
     users,
     refreshTokens,
     transaction,
-    request: (path: string, init?: RequestInit) =>
-      fetch(`http://127.0.0.1:${address.port}/api/v1/auth${path}`, init),
+    request: (path: string, init?: RequestInit) => {
+      const headers = new Headers(init?.headers);
+      if (!headers.has('Origin') && !headers.has('Referer')) headers.set('Origin', webOrigin);
+      return fetch(`http://127.0.0.1:${address.port}/api/v1/auth${path}`, { ...init, headers });
+    },
     currency: (path: string, init?: RequestInit) =>
       fetch(`http://127.0.0.1:${address.port}/api/v1${path}`, init),
   };
@@ -222,6 +227,32 @@ afterEach(async () => {
 });
 
 describe('auth routes', () => {
+  it.each(['/refresh', '/logout'])(
+    'blocks a foreign origin before using a cookie on %s',
+    async (path) => {
+      const api = createTestApi();
+      const response = await api.request(path, {
+        method: 'POST',
+        headers: {
+          Origin: 'null',
+          Referer: webOrigin + '/account',
+          Cookie: refreshCookieName + '=fixture',
+        },
+      });
+      expect(response.status).toBe(403);
+      expect(response.headers.has('set-cookie')).toBe(false);
+      expect(api.transaction.refreshToken.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it('accepts a same-origin Referer when the Origin header is absent', async () => {
+    const api = createTestApi();
+    const response = await api.request('/logout', {
+      method: 'POST',
+      headers: { Referer: webOrigin + '/account' },
+    });
+    expect(response.status).toBe(204);
+  });
   it('registers normalized emails and stores only a hashed refresh token', async () => {
     const api = createTestApi();
     const response = await api.request(

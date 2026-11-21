@@ -158,35 +158,35 @@ worker.on('completed', (job, result) => {
   if (job.name !== enrichmentJobName)
     logger.info({ jobId: job.id, result }, 'Deal sync job completed');
 });
-worker.on('failed', (job, error) => {
+worker.on('failed', (job) => {
   if (job?.name === enrichmentJobName) {
     logger.error({ jobId: job.id }, 'Metadata enrichment job failed');
   } else {
-    logger.error({ jobId: job?.id, err: error }, 'Deal sync job failed');
+    logger.error({ jobId: job?.id }, 'Deal sync job failed');
   }
 });
-worker.on('error', (error) => {
-  logger.error({ err: error }, 'Deal sync worker error');
+worker.on('error', () => {
+  logger.error('Deal sync worker error');
 });
 
 alertWorker.on('completed', (job, result) => {
   logger.info({ jobId: job.id, result }, 'Alert evaluation job completed');
 });
-alertWorker.on('failed', (job, error) => {
-  logger.error({ jobId: job?.id, err: error }, 'Alert evaluation job failed');
+alertWorker.on('failed', (job) => {
+  logger.error({ jobId: job?.id }, 'Alert evaluation job failed');
 });
-alertWorker.on('error', (error) => {
-  logger.error({ err: error }, 'Alert evaluation worker error');
+alertWorker.on('error', () => {
+  logger.error('Alert evaluation worker error');
 });
 
 emailWorker.on('completed', (job) => {
   logger.info({ jobId: job.id }, 'Alert email job completed');
 });
-emailWorker.on('failed', (job, error) => {
-  logger.error({ jobId: job?.id, errorName: error.name }, 'Alert email job failed');
+emailWorker.on('failed', (job) => {
+  logger.error({ jobId: job?.id }, 'Alert email job failed');
 });
-emailWorker.on('error', (error) => {
-  logger.error({ errorName: error.name }, 'Alert email worker error');
+emailWorker.on('error', () => {
+  logger.error('Alert email worker error');
 });
 
 async function shutdown() {

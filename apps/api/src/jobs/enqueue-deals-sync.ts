@@ -39,8 +39,8 @@ const jobInput = {
 try {
   const job = await enqueueDealsSync(jobInput);
   pino({ level: env.LOG_LEVEL }).info({ jobId: job.id }, 'Enqueued bounded CheapShark deal query');
-} catch (error) {
-  console.error('Could not enqueue deal sync', error);
+} catch {
+  console.error('Could not enqueue deal sync');
   process.exitCode = 1;
 } finally {
   await redis.quit();

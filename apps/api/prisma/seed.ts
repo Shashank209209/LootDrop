@@ -81,8 +81,8 @@ async function main() {
 }
 
 main()
-  .catch((error: unknown) => {
-    console.error('Database seed failed', error);
+  .catch(() => {
+    console.error('Database seed failed');
     process.exitCode = 1;
   })
   .finally(async () => {

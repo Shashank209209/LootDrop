@@ -31,6 +31,7 @@ type RefreshTokenDelegate = Pick<Prisma.TransactionClient, 'refreshToken'>;
 export type AuthRouterOptions = {
   accessSecret: string;
   issuer: string;
+  webOrigin: string;
   cookieSecure: boolean;
   cookieSameSite: 'lax' | 'strict' | 'none';
   rateLimitWindowMs: number;
@@ -110,6 +111,21 @@ function isUniqueConstraintError(error: unknown): boolean {
 export function createAuthRouter(database: AuthDatabase, options: AuthRouterOptions): Router {
   const router = express.Router();
   const requireAuth = createRequireAuth(options.accessSecret, options.issuer);
+  const requireWebOrigin: express.RequestHandler = (request, response, next) => {
+    let origin = request.get('Origin');
+    if (origin === undefined) {
+      try {
+        origin = new URL(request.get('Referer') ?? '').origin;
+      } catch {
+        // An absent or invalid Referer provides no proof of origin.
+      }
+    }
+    if (origin !== options.webOrigin) {
+      sendApiError(response, 403, 'UNTRUSTED_ORIGIN', 'Request origin is not allowed');
+      return;
+    }
+    next();
+  };
   const authRateLimit = rateLimit({
     windowMs: options.rateLimitWindowMs,
     limit: options.rateLimitMax,
@@ -198,7 +214,7 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
     }
   });
 
-  router.post('/refresh', async (request, response, next) => {
+  router.post('/refresh', requireWebOrigin, authRateLimit, async (request, response, next) => {
     const rawToken = readRefreshCookie(request);
     if (!rawToken) {
       clearRefreshCookie(response, options);
@@ -267,7 +283,7 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
     }
   });
 
-  router.post('/logout', async (request, response, next) => {
+  router.post('/logout', requireWebOrigin, async (request, response, next) => {
     const rawToken = readRefreshCookie(request);
     try {
       if (rawToken) {

@@ -253,7 +253,7 @@ export async function runAlertEvaluation(
       try {
         await queueEmail(transactionResult.emailId);
         emailsQueued += 1;
-      } catch (error) {
+      } catch {
         failed += 1;
         await database.notification.updateMany({
           where: { id: transactionResult.emailId, status: 'PENDING' },
@@ -263,17 +263,15 @@ export async function runAlertEvaluation(
           {
             alertId: record.id,
             notificationId: transactionResult.emailId,
-            errorName: error instanceof Error ? error.name : 'UnknownError',
           },
           'Could not enqueue alert email',
         );
       }
-    } catch (error) {
+    } catch {
       failed += 1;
       logger.error(
         {
           alertId: record.id,
-          errorName: error instanceof Error ? error.name : 'UnknownError',
         },
         'Alert evaluation failed for one alert',
       );
