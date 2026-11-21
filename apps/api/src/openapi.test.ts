@@ -7,6 +7,7 @@ describe('OpenAPI document', () => {
 
     expect(Object.keys(document.paths ?? {}).sort()).toEqual(
       [
+        '/health/ready',
         '/api/v1/auth/login',
         '/api/v1/auth/logout',
         '/api/v1/auth/me',

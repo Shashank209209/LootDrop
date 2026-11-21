@@ -16,6 +16,8 @@
     "dev:api": "npm run build --workspace=@dealhunter/contracts && npm run dev --workspace=@dealhunter/api",
     "dev:web": "npm run build --workspace=@dealhunter/contracts && npm run dev --workspace=@dealhunter/web",
     "enrich:once": "npm run enrich:once --workspace=@dealhunter/api --",
+    "start": "npm run start --workspace=@dealhunter/api",
+    "start:worker": "npm run start:worker --workspace=@dealhunter/api",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",

@@ -78,6 +78,15 @@ registry.registerPath({
 });
 registry.registerPath({
   method: 'get',
+  path: '/health/ready',
+  summary: 'Check PostgreSQL and Redis readiness',
+  responses: {
+    200: response(z.object({ status: z.literal('ready') }), 'Dependencies are ready'),
+    503: response(z.object({ status: z.literal('unavailable') }), 'A dependency is unavailable'),
+  },
+});
+registry.registerPath({
+  method: 'get',
   path: '/api/v1/deals',
   summary: 'List and filter deals',
   description:

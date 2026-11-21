@@ -1,5 +1,31 @@
 # LootDrop
 
+## Environment variables
+
+| Setting                                                                                                                                                             | Requirement or default                                                                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                                                                                                                          | `development`, `test`, or `production`. Defaults to development.                                                 |
+| `DATABASE_URL`, `REDIS_URL`                                                                                                                                         | Required at runtime. Use the pooled PostgreSQL URL for the app.                                                  |
+| `DIRECT_URL`                                                                                                                                                        | Required in production. Also required for Prisma migration commands.                                             |
+| `WEB_ORIGIN`                                                                                                                                                        | Exact HTTPS browser origin in production. Defaults to port 5173 on localhost in development.                     |
+| `API_PORT`, `LOG_LEVEL`, `TRUST_PROXY`                                                                                                                              | Default to `4000`, `info`, and `0`. Set the proxy hop count only on a controlled ingress path.                   |
+| `JWT_ACCESS_SECRET`, `JWT_ISSUER`                                                                                                                                   | Signing secret is required. Generate at least 32 random bytes for production. Issuer defaults to `lootdrop-api`. |
+| `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAME_SITE`                                                                                                                       | Secure defaults on in production and is required there. SameSite defaults to `lax`.                              |
+| `AUTH_RATE_LIMIT_WINDOW_MINUTES`, `AUTH_RATE_LIMIT_MAX`                                                                                                             | Default to `15` and `10`.                                                                                        |
+| `CHEAPSHARK_USER_AGENT`, `CHEAPSHARK_MAX_PAGES`, `DEAL_SYNC_INTERVAL_MINUTES`                                                                                       | Optional provider identity, request bound, and interval. Default page bound is 2 and interval is 45 minutes.     |
+| `RAWG_API_KEY`, `RAWG_MAX_REQUESTS_PER_RUN`, `RAWG_ENRICH_BATCH_SIZE`, `ENRICH_INTERVAL_MINUTES`                                                                    | RAWG is optional. Budgets default to `30`, `15`, and `60` minutes.                                               |
+| `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM`                                                                                                                    | Default provider is `log`. Both credentials/settings are required for `resend`.                                  |
+| `VITE_API_BASE_URL`                                                                                                                                                 | Optional web build override. Defaults to the same-origin `/api/v1` path.                                         |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`, `REDIS_PORT`                                                                                  | Local Docker development settings.                                                                               |
+| `DEMO_USER_PASSWORD`                                                                                                                                                | Required only when running the demo seed.                                                                        |
+| `DIRECT_URL_PHASE4_TEST` / `DATABASE_URL_PHASE4_TEST`, `DIRECT_URL_PHASE5_TEST` / `DATABASE_URL_PHASE5_TEST`, `DIRECT_URL_PHASE6_TEST` / `DATABASE_URL_PHASE6_TEST` | Guarded test endpoints in the ignored root environment file.                                                     |
+| `BULLMQ_PREFIX`, `DISABLE_REPEATABLE_SCHEDULES`                                                                                                                     | Scoped by the guards. Normal workers use BullMQ's `bull` prefix and register schedules.                          |
+| `PHASE4_TEST_GUARD`, `PHASE5_GUARD_TARGET`, `PHASE5_GUARD_FINGERPRINT`, `PHASE6_TEST_GUARD`, `PHASE6_TEST_FINGERPRINT`                                              | Internal values set by the branch guards.                                                                        |
+
+After building, use `npm run start` for the API and `npm run start:worker`
+for the worker. Use `/health` for liveness and `/health/ready` for dependency
+readiness.
+
 LootDrop tracks game prices and sends notifications when a saved price rule is met.
 
 ## Price alerts

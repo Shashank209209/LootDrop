@@ -40,6 +40,31 @@ describe('deal sync interval', () => {
       ).toBe(false);
     });
 
+    it('requires explicit production database and HTTPS browser settings and defaults Secure on', () => {
+      const production = {
+        ...validEnvironment,
+        NODE_ENV: 'production',
+        JWT_ACCESS_SECRET: 'test-only-strength-fixture-with-diverse-characters-012345',
+      };
+      const incomplete = envSchema.safeParse(production);
+      expect(incomplete.success).toBe(false);
+      if (!incomplete.success)
+        expect(incomplete.error.issues.map(({ path }) => path[0])).toEqual([
+          'WEB_ORIGIN',
+          'DIRECT_URL',
+        ]);
+      const configured = {
+        ...production,
+        WEB_ORIGIN: 'https://web.example.test',
+        DIRECT_URL: validEnvironment.DATABASE_URL,
+      };
+      expect(envSchema.parse(configured).AUTH_COOKIE_SECURE).toBe(true);
+      expect(envSchema.safeParse({ ...configured, AUTH_COOKIE_SECURE: false }).success).toBe(false);
+      expect(
+        envSchema.safeParse({ ...configured, JWT_ACCESS_SECRET: 'x'.repeat(64) }).success,
+      ).toBe(false);
+    });
+
     it('defaults to the credential-free log email provider', () => {
       const parsed = envSchema.parse({
         ...validEnvironment,

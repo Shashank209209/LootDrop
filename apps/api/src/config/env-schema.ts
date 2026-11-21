@@ -6,28 +6,34 @@ const rawgApiKeySchema = z.preprocess(
   z.string().trim().min(1).optional(),
 );
 
-const cookieSecureDefault = process.env.NODE_ENV === 'production';
+const originSchema = z.string().refine((value) => {
+  try {
+    const url = new URL(value);
+    return ['http:', 'https:'].includes(url.protocol) && url.origin === value;
+  } catch {
+    return false;
+  }
+}, 'Provide a browser origin');
 
 export const envSchema = z
   .object({
+    NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
-    WEB_ORIGIN: z.string().url().default('http://localhost:5173'),
+    WEB_ORIGIN: originSchema.optional(),
     TRUST_PROXY: z.coerce.number().int().min(0).max(10).default(0),
     LOG_LEVEL: z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
     DATABASE_URL: z.string().url(),
+    DIRECT_URL: z.string().url().optional(),
     REDIS_URL: z.string().url(),
     JWT_ACCESS_SECRET: z.string().min(32),
     JWT_ISSUER: z.string().min(1).default('lootdrop-api'),
-    AUTH_COOKIE_SECURE: z
-      .preprocess((value) => {
-        if (value === undefined) return cookieSecureDefault;
-        if (value === 'true' || value === '1') return true;
-        if (value === 'false' || value === '0') return false;
-        return value;
-      }, z.boolean())
-      .default(cookieSecureDefault),
+    AUTH_COOKIE_SECURE: z.preprocess((value) => {
+      if (value === 'true' || value === '1') return true;
+      if (value === 'false' || value === '0') return false;
+      return value;
+    }, z.boolean().optional()),
     AUTH_COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
     AUTH_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
     AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
@@ -42,7 +48,24 @@ export const envSchema = z
     RESEND_API_KEY: z.string().optional(),
     EMAIL_FROM: z.string().email().optional(),
   })
+  .transform((config) => ({
+    ...config,
+    WEB_ORIGIN:
+      config.WEB_ORIGIN ?? (config.NODE_ENV === 'production' ? '' : 'http://localhost:5173'),
+    AUTH_COOKIE_SECURE: config.AUTH_COOKIE_SECURE ?? config.NODE_ENV === 'production',
+  }))
   .superRefine((config, context) => {
+    if (config.NODE_ENV === 'production') {
+      const require = (condition: boolean, name: string) => {
+        if (!condition)
+          context.addIssue({ code: 'custom', path: [name], message: 'Invalid production setting' });
+      };
+      require(config.WEB_ORIGIN.startsWith('https://'), 'WEB_ORIGIN');
+      require(Boolean(config.DIRECT_URL), 'DIRECT_URL');
+      require(config.AUTH_COOKIE_SECURE, 'AUTH_COOKIE_SECURE');
+      require(new Set(config.JWT_ACCESS_SECRET).size >= 12 &&
+        !/^(change|replace|example)/i.test(config.JWT_ACCESS_SECRET), 'JWT_ACCESS_SECRET');
+    }
     if (config.AUTH_COOKIE_SAME_SITE === 'none' && !config.AUTH_COOKIE_SECURE) {
       context.addIssue({
         code: z.ZodIssueCode.custom,

@@ -20,6 +20,7 @@ import { createCurrencyRouter } from './currency/currency-router.js';
 import { RatesService } from './currency/rates-service.js';
 import { RedisJsonCache } from './pricing/cache.js';
 import { requestLogger, requestErrorHandler } from './http/request-safety.js';
+import { readiness } from './http/readiness.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const app = express();
@@ -29,7 +30,7 @@ const ratesRedis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: 0,
 });
 const ratesPrefix =
-  process.env.PHASE5_GUARD_TARGET === 'phase-5-test'
+  process.env.PHASE5_GUARD_TARGET === 'phase-5-test' || process.env.PHASE6_TEST_GUARD === '1'
     ? (process.env.BULLMQ_PREFIX ?? 'phase5-test') + ':'
     : '';
 const rates = new RatesService(new RedisJsonCache(ratesRedis, ratesPrefix), logger);
@@ -56,6 +57,7 @@ app.get('/api/v1/health', (_request, response) => {
 app.get('/health', (_request, response) => {
   response.json({ status: 'ok' });
 });
+app.get('/health/ready', readiness([() => prisma.$queryRaw`SELECT 1`, () => ratesRedis.ping()]));
 const openApiDocument = createOpenApiDocument();
 app.get('/docs/openapi.json', (_request, response) => {
   response.json(openApiDocument);
@@ -94,4 +96,4 @@ app.use((_request, response) => {
 
 app.use(requestErrorHandler(logger));
 
-export { app };
+export { app, ratesRedis };

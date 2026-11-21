@@ -22,6 +22,7 @@ import { runSyncAndEnqueueAlerts } from '../alerts/sync-handler.js';
 import { createMailer } from '../alerts/mailer.js';
 import { runAlertEmail } from '../alerts/email-runner.js';
 import { enrichmentDisabledMessage, runEnrichment } from '../pricing/rawg/run-enrichment.js';
+import { handleShutdown } from '../shutdown.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const mailer = createMailer({
@@ -189,19 +190,22 @@ emailWorker.on('error', () => {
   logger.error('Alert email worker error');
 });
 
-async function shutdown() {
-  await emailWorker.close();
-  await alertWorker.close();
-  await worker.close();
-  await syncDealsQueue.close();
-  await alertEvaluationQueue.close();
-  await alertEmailQueue.close();
-  await prisma.$disconnect();
-  await redis.quit();
-}
-
-process.once('SIGINT', () => void shutdown());
-process.once('SIGTERM', () => void shutdown());
+handleShutdown(async () => {
+  const workers = await Promise.allSettled([
+    worker.close(),
+    alertWorker.close(),
+    emailWorker.close(),
+  ]);
+  const queues = await Promise.allSettled([
+    syncDealsQueue.close(),
+    alertEvaluationQueue.close(),
+    alertEmailQueue.close(),
+  ]);
+  const connections = await Promise.allSettled([prisma.$disconnect(), redis.quit()]);
+  if ([...workers, ...queues, ...connections].some((result) => result.status === 'rejected')) {
+    throw new Error('Worker shutdown failed');
+  }
+});
 
 logger.info(
   {
