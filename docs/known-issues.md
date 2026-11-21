@@ -9,6 +9,18 @@
 - Platform filters use seeded platforms. Console family data alone is
   insufficient to identify a specific generation.
 
+## Currency display
+
+- Converted amounts are display estimates. The chart applies one reference
+  rate to the entire history, and actual store checkout amounts can depend on
+  region or fees.
+- Price filters use the original USD amounts in the tracked catalog. Alert
+  thresholds use the listing's original currency. Historical observations and
+  alert decisions use the stored prices.
+- During a rates outage, the API can serve rates from the last successful fetch
+  within seven days. The UI falls back to original values when the rates
+  endpoint cannot supply usable rates.
+
 ## Dependency advisories
 
 - **High — `effect`**. Prisma 6.19.3 brings in `effect` 3.21.0 through

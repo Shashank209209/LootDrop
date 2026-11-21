@@ -112,3 +112,55 @@ cover, ratings, release date, taxonomy and description.
 RAWG requires credit and an active link on each page that uses its data or
 images. LootDrop links to RAWG in the site footer and on game detail pages.
 [RAWG API terms](https://rawg.io/tos_api)
+
+## Currency display
+
+Use the header's **Currency** selector to display prices in USD, INR, or EUR.
+The app marks converted prices with **≈** and keeps the original amount in the
+price's tooltip. It uses ECB reference rates from the keyless Frankfurter API.
+Stores may charge different regional prices. Historical graphs apply the latest
+available reference rate to every point. [Frankfurter terms](https://frankfurter.dev/license/)
+
+Conversion happens in the browser. Stored prices and history, filters, sorting,
+alert targets, and emails use the original listing currency. Dashboard price
+filter inputs use USD for the tracked catalog and show that unit when you
+select INR or EUR. Alert target inputs show their listing currency.
+
+The public `GET /api/v1/rates` endpoint fetches rates on demand. Redis keeps a
+fresh copy for 24 hours and a last-known copy for seven days. The API serves
+last-known rates during provider failures and returns HTTP 503 if no usable
+rates remain. The web app uses original prices when rates are unavailable.
+The rate timestamp records the provider's reference date in UTC.
+
+Accounts load their saved preference from `GET /api/v1/auth/me` and save through
+`PATCH /api/v1/me/preferences`. Guests use `lootdrop.currency` in local storage.
+Signing out restores the guest choice or USD.
+
+### Currency browser and live checks
+
+Start the guarded child-branch API in one PowerShell window.
+
+```powershell
+npm.cmd run build --workspace=@dealhunter/contracts
+node scripts/phase5-test-guard.mjs --without-key -- node --import tsx apps/api/src/server.ts
+```
+
+In another window, run `npm.cmd run dev:web` and open
+[LootDrop](http://localhost:5173).
+
+1. Switch USD, INR, and EUR on the dashboard, then check a game page, its price
+   chart, the wishlist, and the alerts page. Hover a converted price to see the
+   original amount. Check that price inputs still show their original units.
+2. As a guest, refresh and confirm the choice persists. Sign in with a test
+   account, save a different currency, and refresh again. Sign out and confirm
+   the guest choice returns.
+3. Stop the API and reload. The site shows its existing loading errors for
+   unavailable deal data. If prices are already loaded and the rates request
+   fails, they display in their original currency with an exchange-rate notice.
+
+To run the HTTP and database checks with two automatically cleaned-up
+throwaway accounts, use the guarded script from the repository root.
+
+```powershell
+node scripts/phase5-test-guard.mjs --without-key -- node --import tsx scripts/phase5b-live-check.mjs
+```
