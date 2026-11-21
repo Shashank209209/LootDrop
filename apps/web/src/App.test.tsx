@@ -27,6 +27,8 @@ import {
   getDeals,
   getFreeDeals,
   getGame,
+  getMe,
+  getRates,
   getHistoricalLows,
   getNotifications,
   getUnreadNotificationCount,
@@ -46,6 +48,7 @@ import {
   addWishlistGame,
   removeWishlistGame,
   restoreSession,
+  saveCurrencyPreference,
   searchGames,
 } from './lib/api-client.js';
 
@@ -64,6 +67,9 @@ vi.mock('./lib/api-client.js', async (importOriginal) => {
     getUnreadNotificationCount: vi.fn(),
     searchGames: vi.fn(),
     getGame: vi.fn(),
+    getMe: vi.fn(),
+    getRates: vi.fn(),
+    saveCurrencyPreference: vi.fn(),
     getPriceHistory: vi.fn(),
     restoreSession: vi.fn(),
     login: vi.fn(),
@@ -317,6 +323,18 @@ async function logIn(user: ReturnType<typeof userEvent.setup>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  localStorage.removeItem('lootdrop.currency');
+  vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'USD' } });
+  vi.mocked(getRates).mockResolvedValue({
+    base: 'USD',
+    rates: { USD: 1, EUR: 0.9, INR: 85 },
+    asOf: '2026-01-01T00:00:00.000Z',
+    source: 'Frankfurter (European Central Bank)',
+    stale: false,
+  });
+  vi.mocked(saveCurrencyPreference).mockImplementation(async (preferredCurrency) => ({
+    preferredCurrency,
+  }));
   vi.mocked(getDeals).mockResolvedValue(dealsResponse());
   vi.mocked(getAlerts).mockResolvedValue(alertsResponse);
   vi.mocked(getStores).mockResolvedValue({ data: [steam] });
@@ -345,6 +363,63 @@ beforeEach(() => {
 });
 
 afterEach(() => cleanup());
+
+describe('display currency preference', () => {
+  it('tab-focuses the selector and persists the guest choice across a remount', async () => {
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    const { user } = renderDashboard();
+    const selector = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' });
+    screen.getByRole('combobox', { name: 'Search games' }).focus();
+    await user.tab();
+    expect(document.activeElement).toBe(selector);
+    await user.selectOptions(selector, 'INR');
+    expect(localStorage.getItem('lootdrop.currency')).toBe('INR');
+    expect(saveCurrencyPreference).not.toHaveBeenCalled();
+    cleanup();
+    renderDashboard();
+    expect(
+      (await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' })).value,
+    ).toBe('INR');
+  });
+
+  it('prefers the saved account choice on login, saves changes, and restores guest currency on logout', async () => {
+    localStorage.setItem('lootdrop.currency', 'INR');
+    vi.mocked(restoreSession).mockResolvedValue(null);
+    vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'EUR' } });
+    const { user } = renderDashboard('/login');
+    await user.type(await screen.findByLabelText('Email address'), 'player@example.com');
+    await user.type(screen.getByLabelText('Password'), 'fixture-password-long-enough');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
+    const selector = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' });
+    await waitFor(() => expect(selector.value).toBe('EUR'));
+    await user.selectOptions(selector, 'USD');
+    await waitFor(() => expect(saveCurrencyPreference).toHaveBeenCalledWith('USD'));
+    expect(localStorage.getItem('lootdrop.currency')).toBe('INR');
+    expect(Object.values(localStorage)).not.toContain(session.accessToken);
+    expect(Object.values(sessionStorage)).not.toContain(session.accessToken);
+    await user.click(screen.getByRole('button', { name: 'Log out' }));
+    expect(
+      (await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' })).value,
+    ).toBe('INR');
+  });
+
+  it('updates the selector optimistically and rolls it back with an error when saving fails', async () => {
+    let rejectSave!: (error: Error) => void;
+    vi.mocked(saveCurrencyPreference).mockReturnValueOnce(
+      new Promise((_resolve, reject) => {
+        rejectSave = reject;
+      }),
+    );
+    const { user } = renderDashboard();
+    const selector = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' });
+    await waitFor(() => expect(selector.disabled).toBe(false));
+    await user.selectOptions(selector, 'EUR');
+    await waitFor(() => expect(selector.value).toBe('EUR'));
+    rejectSave(new Error('test server refused the preference'));
+    expect(await screen.findByText('Currency preference could not be saved.')).toBeTruthy();
+    expect(selector.value).toBe('USD');
+  });
+});
 
 describe('live deals dashboard', () => {
   it('renders deals returned by the API', async () => {

@@ -5,6 +5,7 @@ import { dealSortOptions } from '@dealhunter/contracts';
 import { AuthPage } from './auth/AuthPage.js';
 import { AuthProvider, useAuth } from './auth/AuthProvider.js';
 import { AccountMenu } from './components/AccountMenu.js';
+import { CurrencyProvider } from './components/CurrencyProvider.js';
 import { CuratedDealSection } from './components/CuratedDealSection.js';
 import { DealCard } from './components/DealCard.js';
 import { GameAutocomplete } from './components/GameAutocomplete.js';
@@ -543,10 +544,12 @@ function AppRoutes() {
 export default function AppRouter() {
   return (
     <AuthProvider>
-      <AppRoutes />
-      <footer className="site-footer">
-        <RawgAttribution />
-      </footer>
+      <CurrencyProvider>
+        <AppRoutes />
+        <footer className="site-footer">
+          <RawgAttribution />
+        </footer>
+      </CurrencyProvider>
     </AuthProvider>
   );
 }

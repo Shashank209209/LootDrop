@@ -1,3 +1,4 @@
+import { preferenceSchema, ratesResponseSchema } from '@dealhunter/contracts';
 import type {
   AuthSessionResponse,
   AuthUser,
@@ -8,6 +9,7 @@ import type {
   DealResponse,
   DealsQuery,
   DealsResponse,
+  DisplayCurrency,
   GameDetailResponse,
   GameSearchResponse,
   HistoricalLowsResponse,
@@ -194,8 +196,21 @@ export async function logout(): Promise<void> {
   }
 }
 
-export async function getMe(): Promise<MeResponse> {
-  return authenticatedJson('/auth/me');
+export async function getMe(signal?: AbortSignal): Promise<MeResponse> {
+  return authenticatedJson('/auth/me', signal ? { signal } : {});
+}
+
+export async function getRates(signal?: AbortSignal) {
+  const body = await publicJson<unknown>('/rates', signal ? { signal } : {});
+  return ratesResponseSchema.parse(body);
+}
+
+export async function saveCurrencyPreference(preferredCurrency: DisplayCurrency) {
+  const body = await authenticatedJson<unknown>('/me/preferences', {
+    ...jsonBody({ preferredCurrency }),
+    method: 'PATCH',
+  });
+  return preferenceSchema.parse(body);
 }
 
 export async function getDeals(

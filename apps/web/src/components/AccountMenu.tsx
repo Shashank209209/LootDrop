@@ -1,12 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.js';
 import { NotificationBell } from './NotificationBell.js';
+import { CurrencySelector } from './CurrencyProvider.js';
 
 export function AccountMenu() {
   const { state, logOut, logoutError } = useAuth();
   if (state.status !== 'authenticated') {
     return (
       <nav className="account-menu" aria-label="Account">
+        <CurrencySelector />
         <Link className="ghost-button" to="/login">
           Log in
         </Link>
@@ -19,6 +21,7 @@ export function AccountMenu() {
 
   return (
     <div className="account-menu">
+      <CurrencySelector />
       <span className="account-name">{state.user.displayName}</span>
       <Link className="ghost-button" to="/wishlist">
         Wishlist
