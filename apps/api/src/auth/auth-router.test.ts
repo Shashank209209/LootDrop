@@ -4,6 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { hashSeedPassword } from './password.js';
 import { createAuthRouter, refreshCookieName } from './auth-router.js';
+import { createCurrencyRouter } from '../currency/currency-router.js';
+import { signAccessToken } from './jwt.js';
 
 const accessSecret = 'unit-test-access-secret-longer-than-thirty-two-characters';
 const issuer = 'lootdrop-test';
@@ -19,6 +21,7 @@ type UserRecord = {
   email: string;
   displayName: string;
   passwordHash: string;
+  preferredCurrency: string;
 };
 
 type RefreshRecord = {
@@ -33,7 +36,7 @@ beforeAll(async () => {
   knownPasswordHash = await hashSeedPassword(knownPassword);
 });
 
-function createTestApi(options: { rateLimitMax?: number } = {}) {
+function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolean } = {}) {
   const users = new Map<string, UserRecord>();
   const refreshTokens = new Map<string, RefreshRecord>();
   const knownUser = {
@@ -41,19 +44,20 @@ function createTestApi(options: { rateLimitMax?: number } = {}) {
     email: knownEmail,
     displayName: knownDisplayName,
     passwordHash: knownPasswordHash,
+    preferredCurrency: 'USD',
   };
   users.set(knownEmail, knownUser);
 
   const transaction = {
     user: {
-      create: vi.fn(async ({ data }: { data: Omit<UserRecord, 'id'> }) => {
+      create: vi.fn(async ({ data }: { data: Omit<UserRecord, 'id' | 'preferredCurrency'> }) => {
         if (users.has(data.email)) {
           throw new Prisma.PrismaClientKnownRequestError('unique constraint', {
             code: 'P2002',
             clientVersion: 'test',
           });
         }
-        const user = { ...data, id: randomUUID() };
+        const user = { preferredCurrency: 'USD', ...data, id: randomUUID() };
         users.set(user.email, user);
         return { id: user.id, email: user.email, displayName: user.displayName };
       }),
@@ -64,6 +68,14 @@ function createTestApi(options: { rateLimitMax?: number } = {}) {
               (where.email !== undefined && user.email === where.email) ||
               (where.id !== undefined && user.id === where.id),
           ) ?? null,
+      ),
+      update: vi.fn(
+        async ({ where, data }: { where: { id: string }; data: { preferredCurrency: string } }) => {
+          const user = [...users.values()].find(({ id }) => id === where.id);
+          if (!user) throw new Error('Unknown test user');
+          user.preferredCurrency = data.preferredCurrency;
+          return { preferredCurrency: user.preferredCurrency };
+        },
       ),
     },
     refreshToken: {
@@ -121,6 +133,29 @@ function createTestApi(options: { rateLimitMax?: number } = {}) {
   const app = express();
   app.use(express.json());
   app.use(
+    '/api/v1',
+    createCurrencyRouter(
+      database,
+      {
+        getRates: async () =>
+          options.ratesAvailable
+            ? {
+                cache: 'redis',
+                data: {
+                  base: 'USD',
+                  rates: { USD: 1, INR: 86, EUR: 0.88 },
+                  asOf: '2026-01-01T00:00:00.000Z',
+                  source: 'Test',
+                  stale: false,
+                },
+              }
+            : null,
+      },
+      accessSecret,
+      issuer,
+    ),
+  );
+  app.use(
     '/api/v1/auth',
     createAuthRouter(database, {
       accessSecret,
@@ -153,6 +188,8 @@ function createTestApi(options: { rateLimitMax?: number } = {}) {
     transaction,
     request: (path: string, init?: RequestInit) =>
       fetch(`http://127.0.0.1:${address.port}/api/v1/auth${path}`, init),
+    currency: (path: string, init?: RequestInit) =>
+      fetch(`http://127.0.0.1:${address.port}/api/v1${path}`, init),
   };
 }
 
@@ -357,7 +394,12 @@ describe('auth routes', () => {
     });
     expect(me.status).toBe(200);
     expect(await me.json()).toEqual({
-      user: { id: knownUserId, email: knownEmail, displayName: knownDisplayName },
+      user: {
+        id: knownUserId,
+        email: knownEmail,
+        displayName: knownDisplayName,
+        preferredCurrency: 'USD',
+      },
     });
   });
 
@@ -370,5 +412,88 @@ describe('auth routes', () => {
     expect(await limited.json()).toMatchObject({
       error: { code: 'RATE_LIMITED', message: 'Too many authentication attempts' },
     });
+  });
+});
+
+describe('currency routes', () => {
+  function patch(body: unknown, userId?: string): RequestInit {
+    return {
+      ...postJson(body),
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(userId
+          ? { Authorization: `Bearer ${signAccessToken(userId, accessSecret, issuer)}` }
+          : {}),
+      },
+    };
+  }
+
+  it('exposes public rates and a cache indicator', async () => {
+    const response = await createTestApi({ ratesAvailable: true }).currency('/rates');
+    expect(response.status).toBe(200);
+    expect(response.headers.get('x-rates-cache')).toBe('redis');
+    expect(await response.json()).toMatchObject({ base: 'USD', stale: false });
+  });
+
+  it('returns 503 and a standard error with an empty cache', async () => {
+    const response = await createTestApi().currency('/rates');
+    expect(response.status).toBe(503);
+    expect(await response.json()).toMatchObject({ error: { code: 'RATES_UNAVAILABLE' } });
+  });
+
+  it('requires authentication to change a preference', async () => {
+    const api = createTestApi();
+    const response = await api.currency('/me/preferences', patch({ preferredCurrency: 'EUR' }));
+    expect(response.status).toBe(401);
+    expect(api.transaction.user.update).not.toHaveBeenCalled();
+  });
+
+  it('saves the preference and exposes it through auth/me', async () => {
+    const api = createTestApi();
+    const response = await api.currency(
+      '/me/preferences',
+      patch({ preferredCurrency: 'INR' }, knownUserId),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ preferredCurrency: 'INR' });
+    const me = await api.request('/me', {
+      headers: { Authorization: `Bearer ${signAccessToken(knownUserId, accessSecret, issuer)}` },
+    });
+    expect(await me.json()).toMatchObject({ user: { preferredCurrency: 'INR' } });
+  });
+
+  it.each([{ preferredCurrency: 'JPY' }, { preferredCurrency: 'EUR', extra: true }])(
+    'rejects an invalid preference payload %#',
+    async (body) => {
+      const api = createTestApi();
+      expect((await api.currency('/me/preferences', patch(body, knownUserId))).status).toBe(400);
+      expect(api.transaction.user.update).not.toHaveBeenCalled();
+    },
+  );
+
+  it('can only update the row identified by the token', async () => {
+    const api = createTestApi();
+    const other = {
+      id: randomUUID(),
+      email: 'other@example.test',
+      displayName: 'Other',
+      passwordHash: knownPasswordHash,
+      preferredCurrency: 'USD',
+    };
+    api.users.set(other.email, other);
+    expect(
+      (
+        await api.currency(
+          '/me/preferences',
+          patch({ preferredCurrency: 'EUR', userId: knownUserId }, other.id),
+        )
+      ).status,
+    ).toBe(400);
+    expect(
+      (await api.currency('/me/preferences', patch({ preferredCurrency: 'EUR' }, other.id))).status,
+    ).toBe(200);
+    expect(api.users.get(knownEmail)?.preferredCurrency).toBe('USD');
+    expect(other.preferredCurrency).toBe('EUR');
   });
 });

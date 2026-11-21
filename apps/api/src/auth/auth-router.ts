@@ -3,7 +3,12 @@ import bcrypt from 'bcryptjs';
 import { createHash, randomBytes } from 'node:crypto';
 import express, { type Request, type Response, type Router } from 'express';
 import rateLimit from 'express-rate-limit';
-import { loginRequestSchema, registerRequestSchema, type AuthUser } from '@dealhunter/contracts';
+import {
+  displayCurrencySchema,
+  loginRequestSchema,
+  registerRequestSchema,
+  type AuthUser,
+} from '@dealhunter/contracts';
 import { sendApiError } from '../http/api-error.js';
 import { signAccessToken } from './jwt.js';
 import { hashSeedPassword } from './password.js';
@@ -287,14 +292,19 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
     try {
       const user = await database.user.findUnique({
         where: { id: userId },
-        select: publicUserSelect,
+        select: { ...publicUserSelect, preferredCurrency: true },
       });
       if (!user) {
         sendApiError(response, 401, 'UNAUTHORIZED', 'Authentication required');
         return;
       }
       response.setHeader('Cache-Control', 'no-store');
-      response.status(200).json({ user: toAuthUser(user) });
+      response.status(200).json({
+        user: {
+          ...toAuthUser(user),
+          preferredCurrency: displayCurrencySchema.catch('USD').parse(user.preferredCurrency),
+        },
+      });
     } catch (error) {
       next(error);
     }

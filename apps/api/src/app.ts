@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import swaggerUi from 'swagger-ui-express';
 import pino from 'pino';
 import { pinoHttp } from 'pino-http';
+import { Redis } from 'ioredis';
 import { env } from './config/env.js';
 import { prisma } from './db/prisma.js';
 import { createDealsRouter } from './pricing/deals-router.js';
@@ -17,9 +18,22 @@ import { createWishlistRouter } from './wishlist/wishlist-router.js';
 import { createAlertsRouter } from './alerts/alerts-router.js';
 import { createNotificationsRouter } from './alerts/notifications-router.js';
 import { sendApiError } from './http/api-error.js';
+import { createCurrencyRouter } from './currency/currency-router.js';
+import { RatesService } from './currency/rates-service.js';
+import { RedisJsonCache } from './pricing/cache.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const app = express();
+const ratesRedis = new Redis(env.REDIS_URL, {
+  lazyConnect: true,
+  commandTimeout: 1200,
+  maxRetriesPerRequest: 0,
+});
+const ratesPrefix =
+  process.env.PHASE5_GUARD_TARGET === 'phase-5-test'
+    ? (process.env.BULLMQ_PREFIX ?? 'phase5-test') + ':'
+    : '';
+const rates = new RatesService(new RedisJsonCache(ratesRedis, ratesPrefix), logger);
 
 app.disable('x-powered-by');
 app.use(helmet());
@@ -68,6 +82,7 @@ app.use('/api/v1', createDealsRouter(prisma));
 app.use('/api/v1', createCuratedDealsRouter(prisma));
 app.use('/api/v1', createGamesRouter(prisma));
 app.use('/api/v1', createTaxonomyRouter(prisma));
+app.use('/api/v1', createCurrencyRouter(prisma, rates, env.JWT_ACCESS_SECRET, env.JWT_ISSUER));
 app.use(
   '/api/v1/auth',
   createAuthRouter(prisma, {
