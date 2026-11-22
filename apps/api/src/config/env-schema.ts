@@ -37,7 +37,7 @@ export const envSchema = z
     AUTH_COOKIE_SAME_SITE: z.enum(['lax', 'strict', 'none']).default('lax'),
     AUTH_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().min(1).max(60).default(15),
     AUTH_RATE_LIMIT_MAX: z.coerce.number().int().min(1).max(100).default(10),
-    CHEAPSHARK_USER_AGENT: z.string().min(8).default('DealHunter/0.1.0'),
+    CHEAPSHARK_USER_AGENT: z.string().min(8).default('LootDrop/0.1.0'),
     CHEAPSHARK_MAX_PAGES: z.coerce.number().int().min(1).max(10).default(2),
     DEAL_SYNC_INTERVAL_MINUTES: dealSyncIntervalSchema,
     RAWG_API_KEY: rawgApiKeySchema,

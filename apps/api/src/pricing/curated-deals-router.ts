@@ -3,7 +3,7 @@ import {
   bestDealsQuerySchema,
   freeDealsQuerySchema,
   historicalLowsQuerySchema,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import { Router, type Request, type Response } from 'express';
 import { dealSelect, moneyNumber, serializeDeal } from './deal-serialization.js';
 

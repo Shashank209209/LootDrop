@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { AuthSessionResponse, AuthUser } from '@dealhunter/contracts';
+import type { AuthSessionResponse, AuthUser } from '@lootdrop/contracts';
 import { logout, restoreSession, setAccessToken } from '../lib/api-client.js';
 
 type AuthState =

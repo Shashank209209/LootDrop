@@ -1,5 +1,5 @@
 {
-  "name": "dealhunter",
+  "name": "lootdrop",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -12,21 +12,21 @@
     "node": ">=20"
   },
   "scripts": {
-    "postinstall": "npm run db:generate --workspace=@dealhunter/api",
-    "dev:api": "npm run build --workspace=@dealhunter/contracts && npm run dev --workspace=@dealhunter/api",
-    "dev:web": "npm run build --workspace=@dealhunter/contracts && npm run dev --workspace=@dealhunter/web",
-    "enrich:once": "npm run enrich:once --workspace=@dealhunter/api --",
-    "start": "npm run start --workspace=@dealhunter/api",
-    "start:worker": "npm run start:worker --workspace=@dealhunter/api",
-    "test:e2e": "npm run build --workspace=@dealhunter/contracts && playwright test --project=mocked",
-    "test:e2e:smoke": "npm run build --workspace=@dealhunter/contracts && node scripts/phase6-test-guard.mjs -- node node_modules/@playwright/test/cli.js test --project=smoke",
-    "screenshots": "npm run build --workspace=@dealhunter/contracts && playwright test --project=screenshots",
+    "postinstall": "npm run db:generate --workspace=@lootdrop/api",
+    "dev:api": "npm run build --workspace=@lootdrop/contracts && npm run dev --workspace=@lootdrop/api",
+    "dev:web": "npm run build --workspace=@lootdrop/contracts && npm run dev --workspace=@lootdrop/web",
+    "enrich:once": "npm run enrich:once --workspace=@lootdrop/api --",
+    "start": "npm run start --workspace=@lootdrop/api",
+    "start:worker": "npm run start:worker --workspace=@lootdrop/api",
+    "test:e2e": "npm run build --workspace=@lootdrop/contracts && playwright test --project=mocked",
+    "test:e2e:smoke": "npm run build --workspace=@lootdrop/contracts && node scripts/phase6-test-guard.mjs -- node node_modules/@playwright/test/cli.js test --project=smoke",
+    "screenshots": "npm run build --workspace=@lootdrop/contracts && playwright test --project=screenshots",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run build --workspace=@dealhunter/contracts && npm run test --workspaces --if-present"
+    "test": "npm run build --workspace=@lootdrop/contracts && npm run test --workspaces --if-present"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.14.0",

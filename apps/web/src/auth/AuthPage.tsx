@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react';
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom';
-import { loginRequestSchema, registerRequestSchema } from '@dealhunter/contracts';
+import { loginRequestSchema, registerRequestSchema } from '@lootdrop/contracts';
 import { useAuth } from './AuthProvider.js';
 import { ApiError, login, registerAccount } from '../lib/api-client.js';
 
@@ -98,7 +98,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
     <main className="auth-shell">
       <div className="auth-panel">
         <div className="auth-copy">
-          <p className="eyebrow">DealHunter</p>
+          <p className="eyebrow">LootDrop</p>
           <h1>Track the best game deals before everyone else.</h1>
           <p className="auth-subtitle">
             Sign in to save games and discover new titles, price drops, and gaming bargains.

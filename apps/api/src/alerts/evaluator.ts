@@ -1,4 +1,4 @@
-import type { AlertType } from '@dealhunter/contracts';
+import type { AlertType } from '@lootdrop/contracts';
 
 export interface AlertToEvaluate {
   id: string;

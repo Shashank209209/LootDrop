@@ -28,7 +28,7 @@ export function WishlistPage() {
       <div className="page-inner">
         <header className="topbar">
           <div>
-            <p className="eyebrow">DealHunter</p>
+            <p className="eyebrow">LootDrop</p>
             <h1>My wishlist</h1>
           </div>
           <AccountMenu />

@@ -3,7 +3,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
-import type { PriceHistoryResponse } from '@dealhunter/contracts';
+import type { PriceHistoryResponse } from '@lootdrop/contracts';
 import { PriceHistoryChart } from './PriceHistoryChart.js';
 
 const chart = vi.hoisted(() => ({ data: vi.fn(), marker: vi.fn(), axis: vi.fn() }));

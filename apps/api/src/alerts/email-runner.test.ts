@@ -45,6 +45,8 @@ describe('alert email delivery', () => {
     );
     expect(send.mock.calls[0]?.[0].html).toContain('&lt;script&gt;Game &amp; One');
     expect(send.mock.calls[0]?.[0].html).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(send.mock.calls[0]?.[0].text).toMatch(/\n\nLootDrop$/);
+    expect(send.mock.calls[0]?.[0].html).toContain('<p>LootDrop</p>');
     expect(database.notification.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ status: 'SENT' }),

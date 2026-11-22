@@ -1,4 +1,4 @@
-import { preferenceSchema, ratesResponseSchema } from '@dealhunter/contracts';
+import { preferenceSchema, ratesResponseSchema } from '@lootdrop/contracts';
 import type {
   AuthSessionResponse,
   AuthUser,
@@ -26,7 +26,7 @@ import type {
   WishlistEntry,
   WishlistIdsResponse,
   WishlistResponse,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 
 export type DealQueryParams = Partial<
   Pick<

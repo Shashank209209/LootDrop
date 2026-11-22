@@ -38,7 +38,7 @@ import {
   wishlistIdsResponseSchema,
   wishlistQuerySchema,
   wishlistResponseSchema,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import { z } from 'zod';
 
 extendZodWithOpenApi(z);

@@ -5,7 +5,7 @@ import {
   displayCurrencySchema,
   type DisplayCurrency,
   type RatesResponse,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import { useAuth } from '../auth/AuthProvider.js';
 import { getMe, getRates, saveCurrencyPreference } from '../lib/api-client.js';
 import { readGuestCurrency, writeGuestCurrency } from '../lib/currency.js';

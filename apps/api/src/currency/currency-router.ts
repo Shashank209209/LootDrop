@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { preferenceSchema } from '@dealhunter/contracts';
+import { preferenceSchema } from '@lootdrop/contracts';
 import { Router } from 'express';
 import { createRequireAuth } from '../auth/require-auth.js';
 import { sendApiError } from '../http/api-error.js';

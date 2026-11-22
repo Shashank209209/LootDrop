@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthProvider.js';
-import type { GameDetailResponse } from '@dealhunter/contracts';
+import type { GameDetailResponse } from '@lootdrop/contracts';
 import { AlertDialog } from './AlertDialog.js';
 
 type GameListing = GameDetailResponse['data']['listings'][number];

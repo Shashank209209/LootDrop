@@ -16,7 +16,7 @@ describe('CheapSharkAdapter', () => {
       expect(url.searchParams.get('pageSize')).toBe('10');
       expect(url.searchParams.get('title')).toBe('The Witcher');
       expect(url.searchParams.get('onSale')).toBe('1');
-      expect(new Headers(init?.headers).get('User-Agent')).toBe('DealHunter/0.1');
+      expect(new Headers(init?.headers).get('User-Agent')).toBe('LootDrop/0.1');
       return new Response(
         JSON.stringify([
           {
@@ -36,7 +36,7 @@ describe('CheapSharkAdapter', () => {
     const adapter = new CheapSharkAdapter({
       cache,
       limiter,
-      userAgent: 'DealHunter/0.1',
+      userAgent: 'LootDrop/0.1',
       fetchImpl,
     });
 
@@ -63,7 +63,7 @@ describe('CheapSharkAdapter', () => {
     const adapter = new CheapSharkAdapter({
       cache: { get: vi.fn(async () => null), set: vi.fn(async () => undefined) },
       limiter,
-      userAgent: 'DealHunter/0.1',
+      userAgent: 'LootDrop/0.1',
       fetchImpl,
     });
 
@@ -79,7 +79,7 @@ describe('CheapSharkAdapter', () => {
     const adapter = new CheapSharkAdapter({
       cache: { get: vi.fn(async () => null), set: vi.fn(async () => undefined) },
       limiter: { waitForPermit: vi.fn(async () => undefined) },
-      userAgent: 'DealHunter/0.1',
+      userAgent: 'LootDrop/0.1',
       fetchImpl,
     });
 

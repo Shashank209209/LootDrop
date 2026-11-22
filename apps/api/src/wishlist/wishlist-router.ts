@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { wishlistAddRequestSchema, wishlistQuerySchema } from '@dealhunter/contracts';
+import { wishlistAddRequestSchema, wishlistQuerySchema } from '@lootdrop/contracts';
 import { Router } from 'express';
 import type { Request, Response } from 'express';
 import { moneyNumber } from '../pricing/deal-serialization.js';

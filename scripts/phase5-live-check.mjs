@@ -90,7 +90,7 @@ async function snapshot(db) {
 async function verifyKeyless() {
   const env = { ...process.env, RAWG_API_KEY: '', API_PORT: String(await pickPort()) };
   for (const [label, script, ready] of [
-    ['API', 'apps/api/src/server.ts', 'DealHunter API listening'],
+    ['API', 'apps/api/src/server.ts', 'LootDrop API listening'],
     ['worker', 'apps/api/src/jobs/sync-deals-worker.ts', 'ready without recurring schedules'],
   ]) {
     const service = await start(script, env, ready);
@@ -113,7 +113,7 @@ async function verifyRequests(slugs) {
   const service = await start(
     'apps/api/src/server.ts',
     { ...process.env, API_PORT: String(port) },
-    'DealHunter API listening',
+    'LootDrop API listening',
   );
   const base = 'http://127.0.0.1:' + port + '/api/v1';
   try {

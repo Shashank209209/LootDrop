@@ -19,7 +19,7 @@ import type {
   PriceHistoryResponse,
   StoreResponse,
   WishlistResponse,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import App from './App.js';
 import {
   getBestDeals,

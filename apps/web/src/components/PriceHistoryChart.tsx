@@ -8,7 +8,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import type { CurrencyRates, DisplayCurrency, PriceHistoryResponse } from '@dealhunter/contracts';
+import type { CurrencyRates, DisplayCurrency, PriceHistoryResponse } from '@lootdrop/contracts';
 import { convertPrice, formatCurrency } from '../lib/currency.js';
 
 const lineStyles = [

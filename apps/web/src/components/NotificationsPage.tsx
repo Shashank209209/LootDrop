@@ -41,7 +41,7 @@ export function NotificationsPage() {
       <div className="page-inner">
         <header className="topbar">
           <div>
-            <p className="eyebrow">DealHunter</p>
+            <p className="eyebrow">LootDrop</p>
             <h1>Notifications</h1>
           </div>
           <AccountMenu />

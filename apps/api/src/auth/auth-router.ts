@@ -8,7 +8,7 @@ import {
   loginRequestSchema,
   registerRequestSchema,
   type AuthUser,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import { sendApiError } from '../http/api-error.js';
 import { signAccessToken } from './jwt.js';
 import { hashSeedPassword } from './password.js';

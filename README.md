@@ -54,40 +54,40 @@ Run these commands against that **local database** to install dependencies, star
 ```text
 docker compose up -d postgres redis
 npm ci
-npm run db:deploy --workspace=@dealhunter/api
-npm run db:seed --workspace=@dealhunter/api
-npm run build --workspace=@dealhunter/contracts
+npm run db:deploy --workspace=@lootdrop/api
+npm run db:seed --workspace=@lootdrop/api
+npm run build --workspace=@lootdrop/contracts
 ```
 
-In separate terminals run `npm run dev:api`, `npm run dev:web`, and `npm run worker:deals --workspace=@dealhunter/api`. To populate live listings immediately, run `npm run sync:deals --workspace=@dealhunter/api`. Open the [web app](http://localhost:5173) or [API explorer](http://localhost:4000/docs). Set `RAWG_API_KEY` to enable enrichment. [Local provider operations and guarded checks](docs/pricing-operations.md)
+In separate terminals run `npm run dev:api`, `npm run dev:web`, and `npm run worker:deals --workspace=@lootdrop/api`. To populate live listings immediately, run `npm run sync:deals --workspace=@lootdrop/api`. Open the [web app](http://localhost:5173) or [API explorer](http://localhost:4000/docs). Set `RAWG_API_KEY` to enable enrichment. [Local provider operations and guarded checks](docs/pricing-operations.md)
 
 ## How to demo this project
 
-Run the seed on a local database and log in as `demo@dealhunter.local` with the password you set through `DEMO_USER_PASSWORD` in the seed settings. Open a deal, switch to INR, review its price chart, save it to the wishlist, and create a price alert. For an offline preview with predictable data, use the screenshots or mocked browser suite.
+Run the seed on a local database and log in as `demo@lootdrop.local` with the password you set through `DEMO_USER_PASSWORD` in the seed settings. Open a deal, switch to INR, review its price chart, save it to the wishlist, and create a price alert. For an offline preview with predictable data, use the screenshots or mocked browser suite.
 
 ## Environment variables
 
-| Variable                                                                                                               | Requirement or default                                                                                                |
-| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                                                                                                             | `development`, `test`, or `production`. Defaults to development.                                                      |
-| `DATABASE_URL`, `REDIS_URL`                                                                                            | Required at runtime. Use the pooled PostgreSQL endpoint for the app when using Neon.                                  |
-| `DIRECT_URL`                                                                                                           | Required in production and by Prisma migration commands.                                                              |
-| `WEB_ORIGIN`                                                                                                           | Exact HTTPS browser origin required in production. Development defaults to localhost port 5173.                       |
-| `API_PORT`, `LOG_LEVEL`, `TRUST_PROXY`                                                                                 | Default to `4000`, `info`, and `0`. Set proxy hops only for a controlled ingress.                                     |
-| `JWT_ACCESS_SECRET`, `JWT_ISSUER`                                                                                      | Signing secret is required. Generate at least 32 random bytes for production. Issuer defaults to `lootdrop-api`.      |
-| `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAME_SITE`                                                                          | Secure defaults on and is required in production. SameSite defaults to `lax`.                                         |
-| `AUTH_RATE_LIMIT_WINDOW_MINUTES`, `AUTH_RATE_LIMIT_MAX`                                                                | Default to `15` minutes and `10` requests.                                                                            |
-| `CHEAPSHARK_USER_AGENT`, `CHEAPSHARK_MAX_PAGES`, `DEAL_SYNC_INTERVAL_MINUTES`                                          | Provider identity, maximum pages per sync, and interval. Defaults to `DealHunter/0.1.0`, `2` pages, and `45` minutes. |
-| `RAWG_API_KEY`, `RAWG_MAX_REQUESTS_PER_RUN`, `RAWG_ENRICH_BATCH_SIZE`, `ENRICH_INTERVAL_MINUTES`                       | Optional key. Request budget, candidate batch size, and interval default to `30`, `15`, and `60` minutes.             |
-| `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM`                                                                       | Defaults to the masked `log` provider. Both Resend settings are required when using `resend`.                         |
-| `VITE_API_BASE_URL`, `VITE_API_PROXY_TARGET`                                                                           | Browser API path defaults to `/api/v1`. Optional Vite dev-proxy target defaults to localhost port 4000.               |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`, `REDIS_PORT`                                     | Local Docker Compose settings.                                                                                        |
-| `DEMO_USER_PASSWORD`                                                                                                   | Required only for the demo seed. Keep it in the ignored root `.env`.                                                  |
-| `DIRECT_URL_PHASE4_TEST`, `DATABASE_URL_PHASE4_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 4 child branch.                                                      |
-| `DIRECT_URL_PHASE5_TEST`, `DATABASE_URL_PHASE5_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 5 child branch.                                                      |
-| `DIRECT_URL_PHASE6_TEST`, `DATABASE_URL_PHASE6_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 6 child branch.                                                      |
-| `BULLMQ_PREFIX`, `DISABLE_REPEATABLE_SCHEDULES`                                                                        | Scoped by the branch guards. The regular worker uses BullMQ’s `bull` prefix and registers schedules.                  |
-| `PHASE4_TEST_GUARD`, `PHASE5_GUARD_TARGET`, `PHASE5_GUARD_FINGERPRINT`, `PHASE6_TEST_GUARD`, `PHASE6_TEST_FINGERPRINT` | Internal branch guard markers.                                                                                        |
+| Variable                                                                                                               | Requirement or default                                                                                              |
+| ---------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                                                                             | `development`, `test`, or `production`. Defaults to development.                                                    |
+| `DATABASE_URL`, `REDIS_URL`                                                                                            | Required at runtime. Use the pooled PostgreSQL endpoint for the app when using Neon.                                |
+| `DIRECT_URL`                                                                                                           | Required in production and by Prisma migration commands.                                                            |
+| `WEB_ORIGIN`                                                                                                           | Exact HTTPS browser origin required in production. Development defaults to localhost port 5173.                     |
+| `API_PORT`, `LOG_LEVEL`, `TRUST_PROXY`                                                                                 | Default to `4000`, `info`, and `0`. Set proxy hops only for a controlled ingress.                                   |
+| `JWT_ACCESS_SECRET`, `JWT_ISSUER`                                                                                      | Signing secret is required. Generate at least 32 random bytes for production. Issuer defaults to `lootdrop-api`.    |
+| `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAME_SITE`                                                                          | Secure defaults on and is required in production. SameSite defaults to `lax`.                                       |
+| `AUTH_RATE_LIMIT_WINDOW_MINUTES`, `AUTH_RATE_LIMIT_MAX`                                                                | Default to `15` minutes and `10` requests.                                                                          |
+| `CHEAPSHARK_USER_AGENT`, `CHEAPSHARK_MAX_PAGES`, `DEAL_SYNC_INTERVAL_MINUTES`                                          | Provider identity, maximum pages per sync, and interval. Defaults to `LootDrop/0.1.0`, `2` pages, and `45` minutes. |
+| `RAWG_API_KEY`, `RAWG_MAX_REQUESTS_PER_RUN`, `RAWG_ENRICH_BATCH_SIZE`, `ENRICH_INTERVAL_MINUTES`                       | Optional key. Request budget, candidate batch size, and interval default to `30`, `15`, and `60` minutes.           |
+| `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM`                                                                       | Defaults to the masked `log` provider. Both Resend settings are required when using `resend`.                       |
+| `VITE_API_BASE_URL`, `VITE_API_PROXY_TARGET`                                                                           | Browser API path defaults to `/api/v1`. Optional Vite dev-proxy target defaults to localhost port 4000.             |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`, `REDIS_PORT`                                     | Local Docker Compose settings.                                                                                      |
+| `DEMO_USER_PASSWORD`                                                                                                   | Required only for the demo seed. Keep it in the ignored root `.env`.                                                |
+| `DIRECT_URL_PHASE4_TEST`, `DATABASE_URL_PHASE4_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 4 child branch.                                                    |
+| `DIRECT_URL_PHASE5_TEST`, `DATABASE_URL_PHASE5_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 5 child branch.                                                    |
+| `DIRECT_URL_PHASE6_TEST`, `DATABASE_URL_PHASE6_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 6 child branch.                                                    |
+| `BULLMQ_PREFIX`, `DISABLE_REPEATABLE_SCHEDULES`                                                                        | Scoped by the branch guards. The regular worker uses BullMQ’s `bull` prefix and registers schedules.                |
+| `PHASE4_TEST_GUARD`, `PHASE5_GUARD_TARGET`, `PHASE5_GUARD_FINGERPRINT`, `PHASE6_TEST_GUARD`, `PHASE6_TEST_FINGERPRINT` | Internal branch guard markers.                                                                                      |
 
 ## Scripts and testing
 

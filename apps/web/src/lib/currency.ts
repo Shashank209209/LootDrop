@@ -2,7 +2,7 @@ import {
   displayCurrencySchema,
   type CurrencyRates,
   type DisplayCurrency,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 
 const currencyStorageKey = 'lootdrop.currency';
 // Use familiar grouping and symbols for the three display currencies.

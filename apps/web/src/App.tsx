@@ -1,7 +1,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
-import { dealSortOptions } from '@dealhunter/contracts';
+import { dealSortOptions } from '@lootdrop/contracts';
 import { AuthProvider, useAuth } from './auth/AuthProvider.js';
 import { AccountMenu } from './components/AccountMenu.js';
 import { CurrencyProvider, useCurrency } from './components/CurrencyProvider.js';
@@ -216,7 +216,7 @@ function Dashboard() {
       <div className="page-inner">
         <header className="topbar">
           <div>
-            <p className="eyebrow">DealHunter</p>
+            <p className="eyebrow">LootDrop</p>
             <h1>
               {state.status === 'authenticated'
                 ? `Welcome back, ${state.user.displayName}`
@@ -589,6 +589,9 @@ export default function AppRouter() {
           <AppRoutes />
         </Suspense>
         <footer className="site-footer">
+          <Link to="/" aria-label="LootDrop home">
+            LootDrop
+          </Link>
           <p className="currency-footnote">
             Prices in INR and EUR are approximate conversions of USD store prices. Stores may charge
             different regional prices. Reference rates from the{' '}

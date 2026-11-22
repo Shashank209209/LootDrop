@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { WishlistIdsResponse } from '@dealhunter/contracts';
+import type { WishlistIdsResponse } from '@lootdrop/contracts';
 import { useAuth } from '../auth/AuthProvider.js';
 import { addWishlistGame, getWishlistIds, removeWishlistGame } from '../lib/api-client.js';
 

@@ -35,8 +35,8 @@ export function createAlertEmail(notification: EmailNotification) {
     moneyNumber(notification.listing.currentPrice) ?? 0,
   );
   const subject = `${subjectText(game)} dropped to ${amount} at ${subjectText(store)}`;
-  const text = `${game} dropped to ${amount} at ${store}.`;
-  const html = `<p><strong>${escapeHtml(game)}</strong> dropped to <strong>${escapeHtml(amount)}</strong> at <strong>${escapeHtml(store)}</strong>.</p>`;
+  const text = `${game} dropped to ${amount} at ${store}.\n\nLootDrop`;
+  const html = `<p><strong>${escapeHtml(game)}</strong> dropped to <strong>${escapeHtml(amount)}</strong> at <strong>${escapeHtml(store)}</strong>.</p><p>LootDrop</p>`;
   return { to: notification.user.email, subject, text, html };
 }
 

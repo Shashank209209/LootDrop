@@ -1,5 +1,5 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
-import { notificationsQuerySchema } from '@dealhunter/contracts';
+import { notificationsQuerySchema } from '@lootdrop/contracts';
 import { Router, type Request, type Response } from 'express';
 import { createRequireAuth } from '../auth/require-auth.js';
 import { sendApiError } from '../http/api-error.js';

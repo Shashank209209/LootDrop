@@ -1,4 +1,4 @@
-import type { TaxonomyResponse } from '@dealhunter/contracts';
+import type { TaxonomyResponse } from '@lootdrop/contracts';
 
 export function TaxonomyFilter({
   label,

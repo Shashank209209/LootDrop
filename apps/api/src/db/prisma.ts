@@ -1,11 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 
 const globalForPrisma = globalThis as typeof globalThis & {
-  dealHunterPrisma?: PrismaClient;
+  lootDropPrisma?: PrismaClient;
 };
 
-export const prisma = globalForPrisma.dealHunterPrisma ?? new PrismaClient();
+export const prisma = globalForPrisma.lootDropPrisma ?? new PrismaClient();
 
 if (process.env.NODE_ENV !== 'production') {
-  globalForPrisma.dealHunterPrisma = prisma;
+  globalForPrisma.lootDropPrisma = prisma;
 }

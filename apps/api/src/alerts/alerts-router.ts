@@ -3,7 +3,7 @@ import {
   alertsQuerySchema,
   createAlertRequestSchema,
   updateAlertRequestSchema,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import { Router, type Request, type Response } from 'express';
 import { createRequireAuth } from '../auth/require-auth.js';
 import { sendApiError } from '../http/api-error.js';

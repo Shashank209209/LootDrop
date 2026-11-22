@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { AlertResponse, AlertsResponse } from '@dealhunter/contracts';
+import type { AlertResponse, AlertsResponse } from '@lootdrop/contracts';
 import { AccountMenu } from './AccountMenu.js';
 import { AlertDialog } from './AlertDialog.js';
 import { deleteAlert, getAlerts, updateAlert } from '../lib/api-client.js';
@@ -94,7 +94,7 @@ export function AlertsPage() {
       <div className="page-inner">
         <header className="topbar">
           <div>
-            <p className="eyebrow">DealHunter</p>
+            <p className="eyebrow">LootDrop</p>
             <h1>Price alerts</h1>
           </div>
           <AccountMenu />

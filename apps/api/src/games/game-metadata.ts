@@ -1,5 +1,5 @@
 import type { Prisma } from '@prisma/client';
-import type { GameMetadata } from '@dealhunter/contracts';
+import type { GameMetadata } from '@lootdrop/contracts';
 
 const taxonomySelect = { slug: true, name: true } as const;
 

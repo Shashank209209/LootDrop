@@ -66,12 +66,12 @@ async function main() {
 
   const passwordHash = await hashSeedPassword(seedEnv.DEMO_USER_PASSWORD);
   await prisma.user.upsert({
-    where: { email: 'demo@dealhunter.local' },
-    update: { passwordHash, displayName: 'DealHunter Demo' },
+    where: { email: 'demo@lootdrop.local' },
+    update: { passwordHash, displayName: 'LootDrop Demo' },
     create: {
-      email: 'demo@dealhunter.local',
+      email: 'demo@lootdrop.local',
       passwordHash,
-      displayName: 'DealHunter Demo',
+      displayName: 'LootDrop Demo',
     },
   });
 

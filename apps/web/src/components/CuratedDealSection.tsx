@@ -1,4 +1,4 @@
-import type { DealResponse, HistoricalLowDeal } from '@dealhunter/contracts';
+import type { DealResponse, HistoricalLowDeal } from '@lootdrop/contracts';
 import { DealCard } from './DealCard.js';
 
 type Props = {

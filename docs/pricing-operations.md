@@ -81,7 +81,7 @@ script. It enriches two batches on the child branch and verifies that the second
 batch leaves the previously enriched rows and their link counts intact.
 
 ```powershell
-npm.cmd run build --workspace=@dealhunter/contracts
+npm.cmd run build --workspace=@lootdrop/contracts
 node scripts/phase5-test-guard.mjs -- node scripts/phase5-live-check.mjs
 ```
 
@@ -91,7 +91,7 @@ For a browser check, start the guarded API in one PowerShell window and run
 disabled. Previously saved metadata remains visible when enrichment is disabled.
 
 ```powershell
-npm.cmd run build --workspace=@dealhunter/contracts
+npm.cmd run build --workspace=@lootdrop/contracts
 node scripts/phase5-test-guard.mjs -- node --import tsx apps/api/src/server.ts
 ```
 
@@ -132,7 +132,7 @@ Signing out restores the guest choice or USD.
 Start the guarded child-branch API in one PowerShell window.
 
 ```powershell
-npm.cmd run build --workspace=@dealhunter/contracts
+npm.cmd run build --workspace=@lootdrop/contracts
 node scripts/phase5-test-guard.mjs --without-key -- node --import tsx apps/api/src/server.ts
 ```
 

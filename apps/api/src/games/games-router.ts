@@ -5,7 +5,7 @@ import {
   priceHistoryQuerySchema,
   type GameSearchQuery,
   type PriceHistoryQuery,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import { Router, type Request, type Response } from 'express';
 import { moneyNumber } from '../pricing/deal-serialization.js';
 import { gameMetadataSelect, serializeGameMetadata } from './game-metadata.js';

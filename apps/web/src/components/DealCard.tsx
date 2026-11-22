@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import type { DealResponse } from '@dealhunter/contracts';
+import type { DealResponse } from '@lootdrop/contracts';
 import { WishlistButton } from './WishlistButton.js';
 import { GameCover, MetadataTags } from './GameMedia.js';
 import { DisplayPrice } from './DisplayPrice.js';

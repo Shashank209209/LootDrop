@@ -1,5 +1,5 @@
 {
-  "name": "@dealhunter/api",
+  "name": "@lootdrop/api",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -24,7 +24,7 @@
   },
   "dependencies": {
     "@asteasolutions/zod-to-openapi": "^7.3.4",
-    "@dealhunter/contracts": "*",
+    "@lootdrop/contracts": "*",
     "@prisma/client": "^6.19.0",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.34.3",

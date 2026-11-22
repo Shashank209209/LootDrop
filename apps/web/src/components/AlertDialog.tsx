@@ -4,7 +4,7 @@ import {
   type AlertResponse,
   type CreateAlertRequest,
   type GameDetailResponse,
-} from '@dealhunter/contracts';
+} from '@lootdrop/contracts';
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { ApiError, createAlert, getGame, updateAlert } from '../lib/api-client.js';
 import { DisplayPrice } from './DisplayPrice.js';

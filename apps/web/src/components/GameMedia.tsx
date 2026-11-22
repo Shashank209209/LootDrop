@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import type { GameMetadata } from '@dealhunter/contracts';
+import type { GameMetadata } from '@lootdrop/contracts';
 
 export function GameCover({
   title,

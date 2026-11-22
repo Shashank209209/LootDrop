@@ -1,4 +1,4 @@
-import { ratesResponseSchema, type RatesResponse } from '@dealhunter/contracts';
+import { ratesResponseSchema, type RatesResponse } from '@lootdrop/contracts';
 import { z } from 'zod';
 import type { JsonCache } from '../pricing/cache.js';
 
