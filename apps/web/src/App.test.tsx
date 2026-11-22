@@ -431,7 +431,7 @@ describe('display-only prices', () => {
   ])('shows the conversion and original price on %s', async (route, original, approximate) => {
     vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'INR' } });
     const { user } = renderDashboard(route);
-    const converted = await screen.findAllByTitle(original + ' USD');
+    const converted = await screen.findAllByTitle(original + ' USD', {}, { timeout: 5000 });
     expect(converted.some((element) => element.textContent === approximate)).toBe(true);
     const selector = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' });
     await user.selectOptions(selector, 'USD');

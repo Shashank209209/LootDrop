@@ -164,9 +164,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
               ) : null}
             </label>
             <label htmlFor="auth-password">
-              Password
+              <span id="auth-password-label">Password</span>
               <input
                 id="auth-password"
+                aria-labelledby="auth-password-label"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
                 value={form.password}
