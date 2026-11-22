@@ -28,6 +28,7 @@
     "test": "npm run build --workspace=@dealhunter/contracts && npm run test --workspaces --if-present"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@eslint/js": "^9.17.0",
     "@playwright/test": "^1.65.1",
     "eslint": "^9.17.0",

@@ -801,7 +801,7 @@ img {
   margin-bottom: 18px;
 }
 
-.panel-header h3 {
+.panel-header h2 {
   margin: 0;
   font-size: 1.2rem;
 }
@@ -1226,7 +1226,7 @@ img {
   color: #047857;
 }
 
-.deal-header h4 {
+.deal-header h3 {
   margin: 6px 0 0;
   font-size: 1.08rem;
   color: #18181b;
@@ -1306,6 +1306,7 @@ img {
 
 .curated-section,
 .detail-panel {
+  min-width: 0;
   margin: 12px 0;
   padding: 1.4rem;
   border: 1px solid rgba(24, 24, 27, 0.1);
@@ -1579,5 +1580,21 @@ img {
 @media (min-width: 901px) and (max-width: 1120px) {
   .deals-with-sidebar .deal-grid {
     grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  button,
+  input,
+  a {
+    transition: none;
+  }
+
+  .skeleton-lines span,
+  .curated-skeletons span {
+    animation: none;
   }
 }

@@ -126,9 +126,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
           <form onSubmit={(event) => void handleSubmit(event)} className="auth-form" noValidate>
             {mode === 'register' ? (
               <label htmlFor="auth-display-name">
-                Display name
+                <span id="auth-display-name-label">Display name</span>
                 <input
                   id="auth-display-name"
+                  aria-labelledby="auth-display-name-label"
                   autoComplete="name"
                   value={form.displayName}
                   maxLength={50}
@@ -138,16 +139,17 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                   placeholder="Alex Morgan"
                 />
                 {fieldErrors.displayName ? (
-                  <span id="display-name-error" className="field-error">
+                  <span id="display-name-error" className="field-error" role="alert">
                     {fieldErrors.displayName}
                   </span>
                 ) : null}
               </label>
             ) : null}
             <label htmlFor="auth-email">
-              Email address
+              <span id="auth-email-label">Email address</span>
               <input
                 id="auth-email"
+                aria-labelledby="auth-email-label"
                 type="email"
                 autoComplete="email"
                 value={form.email}
@@ -155,10 +157,10 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                 aria-invalid={Boolean(fieldErrors.email)}
                 aria-describedby={fieldErrors.email ? 'email-error' : undefined}
                 onChange={(event) => updateField('email', event.target.value)}
-                placeholder="you@example.com"
+                placeholder="Your email address"
               />
               {fieldErrors.email ? (
-                <span id="email-error" className="field-error">
+                <span id="email-error" className="field-error" role="alert">
                   {fieldErrors.email}
                 </span>
               ) : null}
@@ -187,7 +189,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
                 {showPassword ? 'Hide' : 'Show'}
               </button>
               {fieldErrors.password ? (
-                <span id="password-error" className="field-error">
+                <span id="password-error" className="field-error" role="alert">
                   {fieldErrors.password}
                 </span>
               ) : null}

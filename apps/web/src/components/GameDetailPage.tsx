@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import { getGame, getPriceHistory, ApiError } from '../lib/api-client.js';
 import { AccountMenu } from './AccountMenu.js';
@@ -47,6 +47,11 @@ export function GameDetailPage() {
   });
 
   const game = gameQuery.data?.data;
+  const pageTitle =
+    game?.game.title ?? (isNotFound(gameQuery.error) ? 'Game not found' : 'Game details');
+  useEffect(() => {
+    document.title = `${pageTitle} | LootDrop`;
+  }, [pageTitle]);
   const listings = useMemo(() => {
     const items = [...(game?.listings ?? [])];
     return items.sort((left, right) => {

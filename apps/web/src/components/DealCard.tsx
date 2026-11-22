@@ -20,7 +20,7 @@ export function DealCard({
         <div className="deal-header">
           <div>
             <p className="deal-store">{deal.store.name}</p>
-            <h4>
+            <h3>
               <Link
                 to={`/games/${encodeURIComponent(deal.gameSlug)}`}
                 state={{ returnTo }}
@@ -28,7 +28,7 @@ export function DealCard({
               >
                 {deal.gameTitle}
               </Link>
-            </h4>
+            </h3>
           </div>
           {deal.discountPercent !== null ? (
             <span className={`badge ${deal.isOnSale ? 'sale' : ''}`}>

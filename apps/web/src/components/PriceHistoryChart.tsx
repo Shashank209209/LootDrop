@@ -140,6 +140,7 @@ export function PriceHistoryChart({ history, displayCurrency = 'USD', rates }: P
                         strokeWidth={2}
                         dot={entry.points.length === 1 ? { r: 5, strokeWidth: 2 } : false}
                         activeDot={{ r: 5 }}
+                        isAnimationActive={false}
                         connectNulls
                       />
                     );

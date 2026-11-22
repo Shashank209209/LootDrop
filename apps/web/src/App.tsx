@@ -396,7 +396,7 @@ function Dashboard() {
             aria-busy={dealsQuery.isFetching}
           >
             <div className="panel-header">
-              <h3>Current deals</h3>
+              <h2>Current deals</h2>
               <span>
                 {pagination ? `${pagination.totalItems} matching deals` : 'Loading deals'}
                 {dealsQuery.isFetching && dealsQuery.data ? ' · Updating' : ''}
@@ -522,6 +522,20 @@ function ProtectedNotifications() {
 
 function AppRoutes() {
   const { state } = useAuth();
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const titles = new Map([
+      ['/', 'Game deals'],
+      ['/wishlist', 'My wishlist'],
+      ['/alerts', 'Price alerts'],
+      ['/notifications', 'Notifications'],
+      ['/login', 'Log in'],
+      ['/register', 'Register'],
+    ]);
+    if (!/^\/games\/[^/]+\/?$/i.test(pathname)) {
+      document.title = `${titles.get(pathname.replace(/\/$/, '').toLowerCase() || '/') ?? 'Page not found'} | LootDrop`;
+    }
+  }, [pathname]);
   if (state.status === 'loading') {
     return (
       <main className="page-shell">
@@ -547,6 +561,7 @@ function AppRoutes() {
           <main className="page-shell">
             <div className="page-inner request-state">
               <h1>Page not found</h1>
+              <p>This page may have moved. You can browse current deals from the home page.</p>
               <Link className="ghost-button" to="/">
                 Back to deals
               </Link>
