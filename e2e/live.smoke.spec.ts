@@ -43,7 +43,7 @@ test('guarded full-stack registration, login, wishlist, alert, and logout', asyn
     ).toBeVisible();
 
     stage = 'wishlist';
-    const listing = page.getByRole('region', { name: 'Live deals' }).getByRole('article').first();
+    const listing = page.getByRole('region', { name: 'Game catalog' }).getByRole('article').first();
     const listingLink = listing.getByRole('heading').getByRole('link');
     const game = await listingLink.innerText();
     const gamePath = await listingLink.getAttribute('href');

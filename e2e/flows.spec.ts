@@ -9,9 +9,9 @@ async function credentials(page: Page) {
 test('filters and pages deals, uses keyboard search, and shows approximate chart prices', async ({
   page,
 }) => {
-  await mockApi(page);
+  await mockApi(page, { authenticated: true, populated: false, error: false });
   await page.goto('/');
-  const deals = page.getByRole('region', { name: 'Live deals' });
+  const deals = page.getByRole('region', { name: 'Game catalog' });
   await expect(deals.getByRole('link', { name: title })).toBeVisible();
   await page.getByRole('combobox', { name: 'Store', exact: true }).selectOption('steam');
   await expect(page).toHaveURL((url) => url.searchParams.get('store') === 'steam');
@@ -50,16 +50,22 @@ test('registers and signs in, manages a wishlist and alert, and opens notificati
   page,
 }) => {
   await mockApi(page);
-  await page.goto('/register');
+  await page.goto('/');
+  const landing = page.getByRole('heading', { name: 'Find your next game for less.' });
+  await expect(landing).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Game catalog' })).toHaveCount(0);
+  await page.getByRole('link', { name: 'Create an account' }).click();
   await page.getByLabel('Display name').fill('Demo Player');
   await credentials(page);
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'Welcome back, Demo Player' })).toBeVisible();
+  await expect(page.getByRole('combobox', { name: 'Sale status' })).toHaveValue('all');
   await page.getByRole('button', { name: 'Log out' }).click();
+  await expect(landing).toBeVisible();
   await page.getByRole('link', { name: 'Log in' }).click();
   await credentials(page);
   await page.getByRole('button', { name: 'Log in' }).click();
-  const deals = page.getByRole('region', { name: 'Live deals' });
+  const deals = page.getByRole('region', { name: 'Game catalog' });
   await deals.getByRole('button', { name: 'Add to wishlist' }).click();
   await page.getByRole('link', { name: 'Wishlist' }).click();
   await expect(page.getByRole('heading', { name: 'My wishlist' })).toBeVisible();
@@ -88,9 +94,9 @@ test('registers and signs in, manages a wishlist and alert, and opens notificati
 });
 
 test('recovers from a deals API error using Retry', async ({ page }) => {
-  const api = await mockApi(page, { authenticated: false, populated: false, error: true });
+  const api = await mockApi(page, { authenticated: true, populated: false, error: true });
   await page.goto('/');
-  const deals = page.getByRole('region', { name: 'Live deals' });
+  const deals = page.getByRole('region', { name: 'Game catalog' });
   await expect(deals.getByRole('alert')).toContainText('Catalog temporarily unavailable', {
     timeout: 15_000,
   });

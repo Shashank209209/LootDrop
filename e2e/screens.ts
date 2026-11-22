@@ -4,6 +4,13 @@ import { mockApi } from './fixtures.js';
 export const viewports = [390, 768, 1280];
 
 export const screens = [
+  {
+    name: 'landing',
+    path: '/',
+    title: 'PC game price tracking',
+    heading: 'Find your next game for less.',
+    guest: true,
+  },
   { name: 'dashboard', path: '/', title: 'Game deals', heading: 'Welcome back, Demo Player' },
   { name: 'game-detail', path: '/games/celeste', title: 'Celeste', heading: 'Celeste' },
   { name: 'wishlist', path: '/wishlist', title: 'My wishlist', heading: 'My wishlist' },

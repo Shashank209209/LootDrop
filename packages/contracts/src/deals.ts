@@ -65,9 +65,9 @@ export const dealsQuerySchema = z
     genre: taxonomySlugs(10),
     platform: taxonomySlugs(6),
     onSale: z
-      .enum(['true', 'false'])
+      .enum(['true', 'false', 'all'])
       .default('true')
-      .transform((value) => value === 'true'),
+      .transform((value) => (value === 'all' ? value : value === 'true')),
     minPrice: optionalNonNegativeNumber,
     maxPrice: optionalNonNegativeNumber,
     minDiscount: z.preprocess((value) => {

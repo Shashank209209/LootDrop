@@ -324,6 +324,16 @@ describe('GET /api/v1/deals', () => {
     expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0].where?.isOnSale).toBe(false);
   });
 
+  it('includes sale and regular prices when onSale=all without widening the store filter', async () => {
+    const api = createTestApi();
+    const response = await api.request('/api/v1/deals?onSale=all&store=steam');
+
+    expect(response.status).toBe(200);
+    expect(api.transaction.storeListing.findMany.mock.calls[0]?.[0].where).toEqual({
+      store: { is: { isActive: true, OR: [{ slug: 'steam' }] } },
+    });
+  });
+
   it('applies price bounds and minimum discount', async () => {
     const api = createTestApi();
     await api.request('/api/v1/deals?minPrice=2.5&maxPrice=25&minDiscount=30');

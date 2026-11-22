@@ -1,5 +1,5 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { dealSortOptions } from '@lootdrop/contracts';
 import { AuthProvider, useAuth } from './auth/AuthProvider.js';
@@ -8,6 +8,7 @@ import { CurrencyProvider, useCurrency } from './components/CurrencyProvider.js'
 import { CuratedDealSection } from './components/CuratedDealSection.js';
 import { DealCard } from './components/DealCard.js';
 import { GameAutocomplete } from './components/GameAutocomplete.js';
+import { LandingPage } from './components/LandingPage.js';
 import { RawgAttribution } from './components/GameMedia.js';
 import { TaxonomyFilter } from './components/TaxonomyFilter.js';
 import {
@@ -59,8 +60,7 @@ function readSlugs(params: URLSearchParams, key: 'genre' | 'platform') {
   ];
 }
 
-function Dashboard() {
-  const { state } = useAuth();
+function Dashboard({ displayName }: { displayName: string }) {
   const { currency } = useCurrency();
   const priceUnit = currency === 'USD' ? '' : ' (USD)';
   const [searchParams, setSearchParams] = useSearchParams();
@@ -71,7 +71,8 @@ function Dashboard() {
   const selectedStore = searchParams.get('store') ?? '';
   const selectedGenres = readSlugs(searchParams, 'genre');
   const selectedPlatforms = readSlugs(searchParams, 'platform');
-  const onSale = searchParams.get('onSale') !== 'false';
+  const saleFilter = searchParams.get('onSale');
+  const onSale = saleFilter === 'true' ? true : saleFilter === 'false' ? false : 'all';
   const minPriceText = searchParams.get('minPrice') ?? '';
   const maxPriceText = searchParams.get('maxPrice') ?? '';
   const minDiscountText = searchParams.get('minDiscount') ?? '';
@@ -217,11 +218,7 @@ function Dashboard() {
         <header className="topbar">
           <div>
             <p className="eyebrow">LootDrop</p>
-            <h1>
-              {state.status === 'authenticated'
-                ? `Welcome back, ${state.user.displayName}`
-                : 'Discover game deals'}
-            </h1>
+            <h1>Welcome back, {displayName}</h1>
           </div>
           <div className="topbar-actions">
             <GameAutocomplete />
@@ -231,8 +228,8 @@ function Dashboard() {
 
         <section className="hero-panel">
           <div>
-            <p className="panel-label">Live game deals</p>
-            <h2>Discover current prices from tracked stores.</h2>
+            <p className="panel-label">PC game prices</p>
+            <h2>Find a game and compare stores.</h2>
           </div>
           <div className="search-wrap">
             <input
@@ -265,13 +262,14 @@ function Dashboard() {
             Sale status
             <select
               aria-label="Sale status"
-              value={onSale ? 'true' : 'false'}
+              value={String(onSale)}
               onChange={(event) =>
-                updateFilter('onSale', event.target.value === 'true' ? '' : 'false')
+                updateFilter('onSale', event.target.value === 'all' ? '' : event.target.value)
               }
             >
+              <option value="all">All prices</option>
               <option value="true">On sale</option>
-              <option value="false">All prices</option>
+              <option value="false">Regular price</option>
             </select>
           </label>
           <label>
@@ -392,13 +390,13 @@ function Dashboard() {
           ) : null}
           <section
             className="deals-panel"
-            aria-label="Live deals"
+            aria-labelledby="catalog-title"
             aria-busy={dealsQuery.isFetching}
           >
             <div className="panel-header">
-              <h2>Current deals</h2>
+              <h2 id="catalog-title">Game catalog</h2>
               <span>
-                {pagination ? `${pagination.totalItems} matching deals` : 'Loading deals'}
+                {pagination ? `${pagination.totalItems} matching listings` : 'Loading deals'}
                 {dealsQuery.isFetching && dealsQuery.data ? ' · Updating' : ''}
               </span>
             </div>
@@ -475,7 +473,7 @@ function Dashboard() {
   );
 }
 
-function ProtectedWishlist() {
+function RequireAccount({ children }: { children: ReactNode }) {
   const { state } = useAuth();
   const location = useLocation();
   if (state.status !== 'authenticated') {
@@ -487,37 +485,7 @@ function ProtectedWishlist() {
       />
     );
   }
-  return <WishlistPage />;
-}
-
-function ProtectedAlerts() {
-  const { state } = useAuth();
-  const location = useLocation();
-  if (state.status !== 'authenticated') {
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ returnTo: `${location.pathname}${location.search}${location.hash}` }}
-      />
-    );
-  }
-  return <AlertsPage />;
-}
-
-function ProtectedNotifications() {
-  const { state } = useAuth();
-  const location = useLocation();
-  if (state.status !== 'authenticated') {
-    return (
-      <Navigate
-        to="/login"
-        replace
-        state={{ returnTo: `${location.pathname}${location.search}${location.hash}` }}
-      />
-    );
-  }
-  return <NotificationsPage />;
+  return children;
 }
 
 function AppRoutes() {
@@ -525,7 +493,7 @@ function AppRoutes() {
   const { pathname } = useLocation();
   useEffect(() => {
     const titles = new Map([
-      ['/', 'Game deals'],
+      ['/', state.status === 'authenticated' ? 'Game deals' : 'PC game price tracking'],
       ['/wishlist', 'My wishlist'],
       ['/alerts', 'Price alerts'],
       ['/notifications', 'Notifications'],
@@ -535,7 +503,7 @@ function AppRoutes() {
     if (!/^\/games\/[^/]+\/?$/i.test(pathname)) {
       document.title = `${titles.get(pathname.replace(/\/$/, '').toLowerCase() || '/') ?? 'Page not found'} | LootDrop`;
     }
-  }, [pathname]);
+  }, [pathname, state.status]);
   if (state.status === 'loading') {
     return (
       <main className="page-shell">
@@ -548,11 +516,48 @@ function AppRoutes() {
 
   return (
     <Routes>
-      <Route path="/" element={<Dashboard />} />
-      <Route path="/games/:slug" element={<GameDetailPage />} />
-      <Route path="/wishlist" element={<ProtectedWishlist />} />
-      <Route path="/alerts" element={<ProtectedAlerts />} />
-      <Route path="/notifications" element={<ProtectedNotifications />} />
+      <Route
+        path="/"
+        element={
+          state.status === 'authenticated' ? (
+            <Dashboard displayName={state.user.displayName} />
+          ) : (
+            <LandingPage />
+          )
+        }
+      />
+      <Route
+        path="/games/:slug"
+        element={
+          <RequireAccount>
+            <GameDetailPage />
+          </RequireAccount>
+        }
+      />
+      <Route
+        path="/wishlist"
+        element={
+          <RequireAccount>
+            <WishlistPage />
+          </RequireAccount>
+        }
+      />
+      <Route
+        path="/alerts"
+        element={
+          <RequireAccount>
+            <AlertsPage />
+          </RequireAccount>
+        }
+      />
+      <Route
+        path="/notifications"
+        element={
+          <RequireAccount>
+            <NotificationsPage />
+          </RequireAccount>
+        }
+      />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
       <Route
@@ -561,7 +566,7 @@ function AppRoutes() {
           <main className="page-shell">
             <div className="page-inner request-state">
               <h1>Page not found</h1>
-              <p>This page may have moved. You can browse current deals from the home page.</p>
+              <p>This page may have moved. Return to the home page to continue.</p>
               <Link className="ghost-button" to="/">
                 Back to deals
               </Link>

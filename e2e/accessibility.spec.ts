@@ -118,7 +118,7 @@ test('registration errors are announced and missing pages offer recovery', async
   await expect(page).toHaveTitle('Page not found | LootDrop');
   await expect(page.getByRole('heading', { name: 'Page not found' })).toBeVisible();
   await page.getByRole('link', { name: 'Back to deals' }).click();
-  await expect(page.getByRole('heading', { name: 'Discover game deals' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Find your next game for less.' })).toBeVisible();
 });
 
 test('recovers from a failed route bundle using the error boundary', async ({ page }) => {

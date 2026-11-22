@@ -364,25 +364,22 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-describe('display currency preference', () => {
-  it('tab-focuses the selector and persists the guest choice across a remount', async () => {
+describe('catalog access', () => {
+  it('shows the landing page and keyboard-accessible account links before requesting the catalog', async () => {
     vi.mocked(restoreSession).mockResolvedValue(null);
     const { user } = renderDashboard();
-    const selector = await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' });
-    screen.getByRole('combobox', { name: 'Search games' }).focus();
+    await screen.findByRole('heading', { name: 'Find your next game for less.' });
     await user.tab();
-    expect(document.activeElement).toBe(selector);
-    await user.selectOptions(selector, 'INR');
-    expect(localStorage.getItem('lootdrop.currency')).toBe('INR');
-    expect(saveCurrencyPreference).not.toHaveBeenCalled();
-    cleanup();
-    renderDashboard();
-    expect(
-      (await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' })).value,
-    ).toBe('INR');
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Create an account' }));
+    await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Log in' }));
+    expect(getDeals).not.toHaveBeenCalled();
+    expect(getBestDeals).not.toHaveBeenCalled();
   });
+});
 
-  it('prefers the saved account choice on login, saves changes, and restores guest currency on logout', async () => {
+describe('display currency preference', () => {
+  it('prefers the saved account choice on login and preserves the guest preference on logout', async () => {
     localStorage.setItem('lootdrop.currency', 'INR');
     vi.mocked(restoreSession).mockResolvedValue(null);
     vi.mocked(getMe).mockResolvedValue({ user: { ...session.user, preferredCurrency: 'EUR' } });
@@ -398,9 +395,8 @@ describe('display currency preference', () => {
     expect(Object.values(localStorage)).not.toContain(session.accessToken);
     expect(Object.values(sessionStorage)).not.toContain(session.accessToken);
     await user.click(screen.getByRole('button', { name: 'Log out' }));
-    expect(
-      (await screen.findByRole<HTMLSelectElement>('combobox', { name: 'Currency' })).value,
-    ).toBe('INR');
+    await screen.findByRole('heading', { name: 'Find your next game for less.' });
+    expect(localStorage.getItem('lootdrop.currency')).toBe('INR');
   });
 
   it('updates the selector optimistically and rolls it back with an error when saving fails', async () => {
@@ -908,13 +904,12 @@ describe('real authentication and wishlist UI', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('This alert already exists.');
   });
 
-  it('redirects a logged-out alert request to login and returns to the game', async () => {
+  it('requires login for a direct game link and returns to the requested game', async () => {
     const user = userEvent.setup();
     vi.mocked(restoreSession).mockResolvedValue(null);
     renderDashboard('/games/celeste');
-    await screen.findByRole('heading', { name: 'Celeste' });
-    await user.click(screen.getByRole('button', { name: 'Set alert' }));
     await screen.findByLabelText('Email address');
+    expect(getGame).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText('Email address'), 'player@example.com');
     await user.type(screen.getByLabelText('Password'), 'valid-login-password');
     await user.click(screen.getByRole('button', { name: 'Log in' }));
@@ -1017,7 +1012,7 @@ describe('real authentication and wishlist UI', () => {
     vi.clearAllMocks();
     vi.mocked(restoreSession).mockResolvedValue(null);
     renderDashboard('/');
-    await screen.findByRole('heading', { name: 'Discover game deals' });
+    await screen.findByRole('heading', { name: 'Find your next game for less.' });
     expect(getUnreadNotificationCount).not.toHaveBeenCalled();
   });
 
@@ -1033,10 +1028,12 @@ describe('real authentication and wishlist UI', () => {
     expect(screen.queryByRole('link', { name: 'Log in' })).toBeNull();
 
     resolveRestore(null);
-    expect(await screen.findByRole('heading', { name: 'Discover game deals' })).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: 'Find your next game for less.' }),
+    ).toBeTruthy();
   });
 
-  it('restores a logged-in user and shows an anonymous dashboard after refresh failure', async () => {
+  it('restores a logged-in user and shows the landing page after refresh failure', async () => {
     renderDashboard();
     expect(await screen.findByRole('heading', { name: 'Welcome back, Player One' })).toBeTruthy();
     expect(restoreSession).toHaveBeenCalledTimes(1);
@@ -1044,7 +1041,9 @@ describe('real authentication and wishlist UI', () => {
     cleanup();
     vi.mocked(restoreSession).mockResolvedValue(null);
     renderDashboard();
-    expect(await screen.findByRole('heading', { name: 'Discover game deals' })).toBeTruthy();
+    expect(
+      await screen.findByRole('heading', { name: 'Find your next game for less.' }),
+    ).toBeTruthy();
     expect(screen.getByRole('link', { name: 'Log in' })).toBeTruthy();
   });
 
@@ -1161,15 +1160,20 @@ describe('real authentication and wishlist UI', () => {
     await waitFor(() => expect(heart.getAttribute('aria-pressed')).toBe('false'));
   });
 
-  it('sends a logged-out user to login when a wishlist heart is clicked', async () => {
+  it('opens the unfiltered catalog after login from the landing page', async () => {
     const user = userEvent.setup();
     vi.mocked(restoreSession).mockResolvedValue(null);
     renderDashboard();
-    await screen.findByRole('heading', { name: 'Celeste' });
-    await user.click(await screen.findByRole('button', { name: 'Add to wishlist' }));
+    await user.click(await screen.findByRole('link', { name: 'Log in' }));
+    await user.type(await screen.findByLabelText('Email address'), 'player@example.com');
+    await user.type(screen.getByLabelText('Password'), 'valid-login-password');
+    await user.click(screen.getByRole('button', { name: 'Log in' }));
 
-    expect(await screen.findByLabelText('Email address')).toBeTruthy();
-    expect(login).not.toHaveBeenCalled();
+    await screen.findByRole('region', { name: 'Game catalog' });
+    expect(getDeals).toHaveBeenCalledWith(
+      expect.objectContaining({ onSale: 'all' }),
+      expect.anything(),
+    );
   });
 
   it('shows wishlist entries and removes them', async () => {

@@ -98,7 +98,7 @@ function listingWhere(query: DealsQuery): Prisma.StoreListingWhereInput {
   };
 
   return {
-    isOnSale: query.onSale,
+    ...(query.onSale === 'all' ? {} : { isOnSale: query.onSale }),
     store: storeFilter ?? { is: { isActive: true } },
     ...(Object.keys(game).length ? { game } : {}),
     ...(query.minPrice !== undefined || query.maxPrice !== undefined
