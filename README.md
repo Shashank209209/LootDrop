@@ -126,3 +126,7 @@ Open Swagger UI at `/docs` or fetch the specification from `/docs/openapi.json`.
 ## Limitations and roadmap
 
 See the [known issues](docs/known-issues.md), [security policy](SECURITY.md), [security review](docs/phase-6-security-review.md), and [performance measurements](docs/phase-6-performance.md). Price conversions are estimates, games without an unambiguous metadata match can remain uncategorized, and accounts currently lack email verification and password reset. Phase 7 covers deployment, hosted readiness checks, and observing real traffic and Redis usage.
+
+## License
+
+LootDrop is available under the [MIT License](LICENSE).
