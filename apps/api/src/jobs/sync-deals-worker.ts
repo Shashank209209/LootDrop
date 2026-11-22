@@ -1,4 +1,3 @@
-import { Worker } from 'bullmq';
 import pino from 'pino';
 import { env } from '../config/env.js';
 import { prisma } from '../db/prisma.js';
@@ -23,6 +22,7 @@ import { createMailer } from '../alerts/mailer.js';
 import { runAlertEmail } from '../alerts/email-runner.js';
 import { enrichmentDisabledMessage, runEnrichment } from '../pricing/rawg/run-enrichment.js';
 import { handleShutdown } from '../shutdown.js';
+import { createJobWorker, jobRetryOptions } from './job-worker.js';
 
 const logger = pino({ level: env.LOG_LEVEL });
 const mailer = createMailer({
@@ -57,7 +57,7 @@ if (schedulesEnabled) {
   }
 }
 const scheduledJob = schedulesEnabled ? await syncDealsQueue.getJobScheduler(schedulerId) : null;
-const workerOptions = { connection: redis, prefix: queuePrefix, concurrency: 1, drainDelay: 30 };
+const workerOptions = { connection: redis, prefix: queuePrefix };
 
 const enrichmentJobName = 'enrich-metadata';
 if (!env.RAWG_API_KEY) {
@@ -74,8 +74,7 @@ if (!env.RAWG_API_KEY) {
         name: enrichmentJobName,
         data: {},
         opts: {
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 2_000 },
+          ...jobRetryOptions,
           removeOnComplete: 20,
           removeOnFail: 50,
         },
@@ -106,7 +105,7 @@ async function runEnrichmentJob() {
   }
 }
 
-const worker = new Worker(
+const worker = createJobWorker(
   'sync-deals',
   async (job) => {
     if (job.name === enrichmentJobName) return runEnrichmentJob();
@@ -127,7 +126,7 @@ const worker = new Worker(
   workerOptions,
 );
 
-const alertWorker = new Worker(
+const alertWorker = createJobWorker(
   'evaluate-alerts',
   async (job) => {
     const data = evaluateAlertsJobSchema.parse(job.data);
@@ -140,7 +139,7 @@ const alertWorker = new Worker(
   workerOptions,
 );
 
-const emailWorker = new Worker(
+const emailWorker = createJobWorker(
   'alert-emails',
   async (job) => {
     const data = alertEmailJobSchema.parse(job.data);

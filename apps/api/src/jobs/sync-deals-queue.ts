@@ -1,13 +1,13 @@
 import { Queue } from 'bullmq';
 import { queuePrefix, redis } from '../db/redis.js';
 import { dealSyncQuerySchema } from '../pricing/contracts.js';
+import { jobRetryOptions } from './job-worker.js';
 
 export const syncDealsQueue = new Queue('sync-deals', {
   connection: redis,
   prefix: queuePrefix,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2_000 },
+    ...jobRetryOptions,
     removeOnComplete: 1_000,
     removeOnFail: 5_000,
   },

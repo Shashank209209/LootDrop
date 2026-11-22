@@ -86,6 +86,7 @@ Run the seed on a local database and log in as `demo@lootdrop.local` with the pa
 | `DIRECT_URL_PHASE4_TEST`, `DATABASE_URL_PHASE4_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 4 child branch.                                                    |
 | `DIRECT_URL_PHASE5_TEST`, `DATABASE_URL_PHASE5_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 5 child branch.                                                    |
 | `DIRECT_URL_PHASE6_TEST`, `DATABASE_URL_PHASE6_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 6 child branch.                                                    |
+| `LOOTDROP_QUEUE_TEST_PORT`                                                                                             | Optional loopback Redis port for the queue regression tests. CI supplies a disposable Redis service.                |
 | `BULLMQ_PREFIX`, `DISABLE_REPEATABLE_SCHEDULES`                                                                        | Scoped by the branch guards. The regular worker uses BullMQ’s `bull` prefix and registers schedules.                |
 | `PHASE4_TEST_GUARD`, `PHASE5_GUARD_TARGET`, `PHASE5_GUARD_FINGERPRINT`, `PHASE6_TEST_GUARD`, `PHASE6_TEST_FINGERPRINT` | Internal branch guard markers.                                                                                      |
 

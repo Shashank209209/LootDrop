@@ -1,6 +1,7 @@
 import { Queue } from 'bullmq';
 import { z } from 'zod';
 import { queuePrefix, redis } from '../db/redis.js';
+import { jobRetryOptions } from '../jobs/job-worker.js';
 
 export const evaluateAlertsJobSchema = z
   .object({
@@ -16,8 +17,7 @@ export const alertEvaluationQueue = new Queue<EvaluateAlertsJob>('evaluate-alert
   connection: redis,
   prefix: queuePrefix,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2_000 },
+    ...jobRetryOptions,
     removeOnComplete: 1_000,
     removeOnFail: 5_000,
   },
@@ -27,8 +27,7 @@ export const alertEmailQueue = new Queue<{ notificationId: string }>('alert-emai
   connection: redis,
   prefix: queuePrefix,
   defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2_000 },
+    ...jobRetryOptions,
     removeOnComplete: 1_000,
     removeOnFail: 5_000,
   },
