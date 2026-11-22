@@ -20,6 +20,7 @@
     "start:worker": "npm run start:worker --workspace=@dealhunter/api",
     "test:e2e": "npm run build --workspace=@dealhunter/contracts && playwright test --project=mocked",
     "test:e2e:smoke": "npm run build --workspace=@dealhunter/contracts && node scripts/phase6-test-guard.mjs -- node node_modules/@playwright/test/cli.js test --project=smoke",
+    "screenshots": "npm run build --workspace=@dealhunter/contracts && playwright test --project=screenshots",
     "build": "npm run build --workspaces --if-present",
     "lint": "eslint .",
     "format": "prettier --write .",

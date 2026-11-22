@@ -1,192 +1,127 @@
 # LootDrop
 
+LootDrop tracks PC game discounts from CheapShark, enriches matching games with RAWG metadata, and lets players compare listings, review price history, and set alerts. It preserves original store prices and uses ECB reference rates from Frankfurter to show approximate INR and EUR amounts in the browser.
+
+## Features
+
+- Browse active deals, free offers, best deals, and record lows. Filter by store, price, discount, genre, and platform.
+- Search with keyboard autocomplete. Compare listings across stores and explore recorded prices by date range.
+- Save a wishlist and configure target-price, target-discount, sale, or newly matched record-low alerts with in-app notifications and optional email.
+- Switch the display currency between USD, INR, and EUR. Store listings, filters, and alert comparisons retain their original units.
+
+![LootDrop dashboard with mocked game deals](docs/screenshots/dashboard.png)
+
+See the [game detail](docs/screenshots/game-detail.png), [wishlist](docs/screenshots/wishlist.png), [alerts](docs/screenshots/alerts.png), [notifications](docs/screenshots/notifications.png), [login](docs/screenshots/login.png), and [registration](docs/screenshots/register.png) screens. Every screenshot uses mocked data.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  Web[React + Vite] -->|REST| API[Express API]
+  API -->|Prisma| DB[(PostgreSQL)]
+  API -->|Reference rate cache| Redis[(Redis / BullMQ)]
+  API -->|USD exchange rates| Rates[Frankfurter / ECB]
+  Redis -->|Queued jobs| Worker[BullMQ worker]
+  Worker -->|Catalog and offers| CheapShark[CheapShark]
+  Worker -->|Exact-title lookup| RAWG[RAWG]
+  Worker -->|Catalog, price history and alerts| DB
+  Worker -->|Queues and enrichment cache| Redis
+  Worker -->|Optional email notifications| Resend[Resend]
+```
+
+The TypeScript npm workspaces use React, React Router, TanStack Query, and Recharts for the web app. Express, Prisma, PostgreSQL, Redis, and BullMQ serve the API and background jobs. Shared Zod contracts define request shapes and the OpenAPI specification. Vitest, Playwright Chromium, and Axe cover verification.
+
+## Local setup
+
+Use Node 24, npm, and Docker with Compose. Run from the repository root. Use an empty local database and Redis for this setup.
+
+**Windows PowerShell**
+
+```powershell
+if (-not (Test-Path .env)) { Copy-Item apps/api/.env.example .env }
+```
+
+**Linux**
+
+```sh
+cp -n apps/api/.env.example .env
+```
+
+Set `JWT_ACCESS_SECRET` in the ignored root `.env` to a privately generated random value. Configure `DATABASE_URL`, `DIRECT_URL`, and `REDIS_URL` for the local services. Use the same local Postgres settings for the Compose service and the API. Set `DEMO_USER_PASSWORD` if you will run the demo seed.
+
+Run these commands against that **local database** to install dependencies, start the services, and initialize the schema and seed catalog lookups. On Windows, use `npm.cmd` if PowerShell blocks the `npm` shim.
+
+```text
+docker compose up -d postgres redis
+npm ci
+npm run db:deploy --workspace=@dealhunter/api
+npm run db:seed --workspace=@dealhunter/api
+npm run build --workspace=@dealhunter/contracts
+```
+
+In separate terminals run `npm run dev:api`, `npm run dev:web`, and `npm run worker:deals --workspace=@dealhunter/api`. To populate live listings immediately, run `npm run sync:deals --workspace=@dealhunter/api`. Open the [web app](http://localhost:5173) or [API explorer](http://localhost:4000/docs). Set `RAWG_API_KEY` to enable enrichment. [Local provider operations and guarded checks](docs/pricing-operations.md)
+
+## How to demo this project
+
+Run the seed on a local database and log in as `demo@dealhunter.local` with the password you set through `DEMO_USER_PASSWORD` in the seed settings. Open a deal, switch to INR, review its price chart, save it to the wishlist, and create a price alert. For an offline preview with predictable data, use the screenshots or mocked browser suite.
+
 ## Environment variables
 
-| Setting                                                                                                                                                             | Requirement or default                                                                                           |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `NODE_ENV`                                                                                                                                                          | `development`, `test`, or `production`. Defaults to development.                                                 |
-| `DATABASE_URL`, `REDIS_URL`                                                                                                                                         | Required at runtime. Use the pooled PostgreSQL URL for the app.                                                  |
-| `DIRECT_URL`                                                                                                                                                        | Required in production. Also required for Prisma migration commands.                                             |
-| `WEB_ORIGIN`                                                                                                                                                        | Exact HTTPS browser origin in production. Defaults to port 5173 on localhost in development.                     |
-| `API_PORT`, `LOG_LEVEL`, `TRUST_PROXY`                                                                                                                              | Default to `4000`, `info`, and `0`. Set the proxy hop count only on a controlled ingress path.                   |
-| `JWT_ACCESS_SECRET`, `JWT_ISSUER`                                                                                                                                   | Signing secret is required. Generate at least 32 random bytes for production. Issuer defaults to `lootdrop-api`. |
-| `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAME_SITE`                                                                                                                       | Secure defaults on in production and is required there. SameSite defaults to `lax`.                              |
-| `AUTH_RATE_LIMIT_WINDOW_MINUTES`, `AUTH_RATE_LIMIT_MAX`                                                                                                             | Default to `15` and `10`.                                                                                        |
-| `CHEAPSHARK_USER_AGENT`, `CHEAPSHARK_MAX_PAGES`, `DEAL_SYNC_INTERVAL_MINUTES`                                                                                       | Optional provider identity, request bound, and interval. Default page bound is 2 and interval is 45 minutes.     |
-| `RAWG_API_KEY`, `RAWG_MAX_REQUESTS_PER_RUN`, `RAWG_ENRICH_BATCH_SIZE`, `ENRICH_INTERVAL_MINUTES`                                                                    | RAWG is optional. Budgets default to `30`, `15`, and `60` minutes.                                               |
-| `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM`                                                                                                                    | Default provider is `log`. Both credentials/settings are required for `resend`.                                  |
-| `VITE_API_BASE_URL`                                                                                                                                                 | Optional web build override. Defaults to the same-origin `/api/v1` path.                                         |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`, `REDIS_PORT`                                                                                  | Local Docker development settings.                                                                               |
-| `DEMO_USER_PASSWORD`                                                                                                                                                | Required only when running the demo seed.                                                                        |
-| `DIRECT_URL_PHASE4_TEST` / `DATABASE_URL_PHASE4_TEST`, `DIRECT_URL_PHASE5_TEST` / `DATABASE_URL_PHASE5_TEST`, `DIRECT_URL_PHASE6_TEST` / `DATABASE_URL_PHASE6_TEST` | Guarded test endpoints in the ignored root environment file.                                                     |
-| `BULLMQ_PREFIX`, `DISABLE_REPEATABLE_SCHEDULES`                                                                                                                     | Scoped by the guards. Normal workers use BullMQ's `bull` prefix and register schedules.                          |
-| `PHASE4_TEST_GUARD`, `PHASE5_GUARD_TARGET`, `PHASE5_GUARD_FINGERPRINT`, `PHASE6_TEST_GUARD`, `PHASE6_TEST_FINGERPRINT`                                              | Internal values set by the branch guards.                                                                        |
+| Variable                                                                                                               | Requirement or default                                                                                                |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `NODE_ENV`                                                                                                             | `development`, `test`, or `production`. Defaults to development.                                                      |
+| `DATABASE_URL`, `REDIS_URL`                                                                                            | Required at runtime. Use the pooled PostgreSQL endpoint for the app when using Neon.                                  |
+| `DIRECT_URL`                                                                                                           | Required in production and by Prisma migration commands.                                                              |
+| `WEB_ORIGIN`                                                                                                           | Exact HTTPS browser origin required in production. Development defaults to localhost port 5173.                       |
+| `API_PORT`, `LOG_LEVEL`, `TRUST_PROXY`                                                                                 | Default to `4000`, `info`, and `0`. Set proxy hops only for a controlled ingress.                                     |
+| `JWT_ACCESS_SECRET`, `JWT_ISSUER`                                                                                      | Signing secret is required. Generate at least 32 random bytes for production. Issuer defaults to `lootdrop-api`.      |
+| `AUTH_COOKIE_SECURE`, `AUTH_COOKIE_SAME_SITE`                                                                          | Secure defaults on and is required in production. SameSite defaults to `lax`.                                         |
+| `AUTH_RATE_LIMIT_WINDOW_MINUTES`, `AUTH_RATE_LIMIT_MAX`                                                                | Default to `15` minutes and `10` requests.                                                                            |
+| `CHEAPSHARK_USER_AGENT`, `CHEAPSHARK_MAX_PAGES`, `DEAL_SYNC_INTERVAL_MINUTES`                                          | Provider identity, maximum pages per sync, and interval. Defaults to `DealHunter/0.1.0`, `2` pages, and `45` minutes. |
+| `RAWG_API_KEY`, `RAWG_MAX_REQUESTS_PER_RUN`, `RAWG_ENRICH_BATCH_SIZE`, `ENRICH_INTERVAL_MINUTES`                       | Optional key. Request budget, candidate batch size, and interval default to `30`, `15`, and `60` minutes.             |
+| `EMAIL_PROVIDER`, `RESEND_API_KEY`, `EMAIL_FROM`                                                                       | Defaults to the masked `log` provider. Both Resend settings are required when using `resend`.                         |
+| `VITE_API_BASE_URL`, `VITE_API_PROXY_TARGET`                                                                           | Browser API path defaults to `/api/v1`. Optional Vite dev-proxy target defaults to localhost port 4000.               |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT`, `REDIS_PORT`                                     | Local Docker Compose settings.                                                                                        |
+| `DEMO_USER_PASSWORD`                                                                                                   | Required only for the demo seed. Keep it in the ignored root `.env`.                                                  |
+| `DIRECT_URL_PHASE4_TEST`, `DATABASE_URL_PHASE4_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 4 child branch.                                                      |
+| `DIRECT_URL_PHASE5_TEST`, `DATABASE_URL_PHASE5_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 5 child branch.                                                      |
+| `DIRECT_URL_PHASE6_TEST`, `DATABASE_URL_PHASE6_TEST`                                                                   | Direct and pooled endpoint for the guarded Phase 6 child branch.                                                      |
+| `BULLMQ_PREFIX`, `DISABLE_REPEATABLE_SCHEDULES`                                                                        | Scoped by the branch guards. The regular worker uses BullMQ’s `bull` prefix and registers schedules.                  |
+| `PHASE4_TEST_GUARD`, `PHASE5_GUARD_TARGET`, `PHASE5_GUARD_FINGERPRINT`, `PHASE6_TEST_GUARD`, `PHASE6_TEST_FINGERPRINT` | Internal branch guard markers.                                                                                        |
 
-After building, use `npm run start` for the API and `npm run start:worker`
-for the worker. Use `/health` for liveness and `/health/ready` for dependency
-readiness.
+## Scripts and testing
 
-LootDrop tracks game prices and sends notifications when a saved price rule is met.
+| Command                                                                 | Use                                                                                         |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `npm run dev:api`, `npm run dev:web`                                    | Start the API and web app for development.                                                  |
+| `npm run build`                                                         | Build contracts, the API and worker, and the web app.                                       |
+| `npm run start`, `npm run start:worker`                                 | Run the built API and worker with Node.                                                     |
+| `npm run format:check`, `npm run lint`, `npm run typecheck`, `npm test` | Check formatting, lint, TypeScript, and unit and integration tests.                         |
+| `npx playwright install chromium`                                       | Install Chromium for local browser verification.                                            |
+| `npm run test:e2e`                                                      | Run real-browser UI flows, Axe, keyboard checks, and responsive captures with a mocked API. |
+| `npm run screenshots`                                                   | Regenerate the seven portfolio images under `docs/screenshots`.                             |
+| `npm run test:e2e:smoke`                                                | Run the full-stack smoke test against the guarded Phase 6 child branch.                     |
+| `npm run enrich:once -- --limit 10`                                     | Run bounded RAWG enrichment. Use the branch guard when targeting a shared test database.    |
 
-## Price alerts
+The smoke test requires `DIRECT_URL_PHASE6_TEST` and `DATABASE_URL_PHASE6_TEST`. The [guard](scripts/phase6-test-guard.mjs) scopes the child-branch connection to the test process, uses a unique queue prefix, and disables repeatable schedules. The smoke test removes its throwaway account and checks that it is gone. GitHub Actions runs the standard quality gate. The mocked Chromium job can be enabled through the workflow’s manual `run_e2e` input.
 
-Create alerts from a game page or wishlist. Each alert watches one game and either
-a selected store or the cheapest listing in the alert's currency:
+## API and data model
 
-- **Price drops below** fires when a matching price is at or below the target.
-- **Discount reaches** fires when a matching discount is at or above the target.
-- **Any sale starts** fires when a matching listing is marked on sale.
-- **New all-time low** fires when the current price is no higher than its historical
-  low; at least two price snapshots for that listing and currency are required.
+Open Swagger UI at `/docs` or fetch the specification from `/docs/openapi.json`. Public `/api/v1` routes cover deals, stores, games, history, genres, platforms, and exchange rates. Auth routes provide registration and sessions. Account routes manage preferences, wishlist entries, alerts, and notifications. `/health` checks liveness and `/health/ready` checks PostgreSQL and Redis.
 
-Prices are compared only within the alert currency. An alert can trigger at most
-once per 24-hour cooldown, and a still-true condition will not repeatedly notify.
-It re-arms after an evaluation finds the condition false. Email is capped at 20
-messages per user in a rolling 24-hour period. In-app notifications are created
-when an alert fires; email delivery is separate.
+- `Game` joins genres and platforms and links to each store’s `StoreListing`.
+- `PriceSnapshot` records observations per listing in its original currency. `ScrapeRun` records ingestion metadata.
+- `User` owns hashed `RefreshToken` records, `Wishlist` entries, `PriceAlert` rules, and `Notification` events.
 
-Email is disabled by default: `EMAIL_PROVIDER=log` writes one masked log line and
-sends nothing. To enable the Resend provider, set these API environment variables:
+## Design decisions
 
-- `EMAIL_PROVIDER=resend`
-- `RESEND_API_KEY` — your Resend API key
-- `EMAIL_FROM` — a verified sender address
+- **Provider APIs.** CheapShark serves prices, RAWG serves attributed game metadata, and Frankfurter serves exchange rates.
+- **Conservative metadata.** Enrichment accepts one normalized exact-title match. It preserves existing data and caches unresolved candidates for seven days.
+- **Append-only price history.** Listings expose current prices. Snapshots retain historical observations for charts and record-low alerts.
+- **Display-only conversion.** The browser marks estimates with `≈`. Stored prices, alert evaluation, filters, and sorting use original amounts.
+- **Session handling.** The browser keeps short-lived access tokens in memory. Refresh tokens are stored in an HttpOnly cookie and hashed in PostgreSQL. Refresh and logout check the browser origin.
+- **Redis and queues.** BullMQ schedules work apart from request handling. Redis also holds temporary FX data and the RAWG negative cache. PostgreSQL owns durable application state.
 
-With the default `EMAIL_PROVIDER=log`, no mail credentials are required. The API
-environment template is [apps/api/.env.example](apps/api/.env.example).
+## Limitations and roadmap
 
-### Safe child-branch testing
-
-Use the isolated Neon child branch `lootdrop / phase-4-test / neondb`, not
-production. Put its direct and pooled URLs in the root `.env` as
-`DIRECT_URL_PHASE4_TEST` and `DATABASE_URL_PHASE4_TEST`. The guard verifies those
-targets, rejects production matches, overrides database variables only for the
-child process, forces the log email provider, and uses a unique queue prefix.
-The live Phase 4 check calls the sync and evaluator directly; it does not start
-a BullMQ worker or register the recurring sync schedule.
-
-From PowerShell, run the real integration check with:
-
-```powershell
-node scripts/phase4-test-guard.mjs -- npx tsx apps/api/scripts/phase4-live-check.ts
-```
-
-For one explicitly named, store-scoped throwaway `PRICE_BELOW` alert, the
-development-only simulator temporarily changes the named listing's price,
-evaluates it, sends no real email, and restores the listing price:
-
-```powershell
-node scripts/phase4-test-guard.mjs -- npx tsx apps/api/scripts/phase4-simulate-drop.ts --alert <alert-uuid> --price 0.01
-```
-
-Replace the alert placeholder with an ID from the child branch and use a price
-below both the listing's current price and the alert target. The simulator
-refuses production, unguarded execution, non-throwaway users, and ambiguous
-alerts or listings.
-
-## Metadata enrichment
-
-LootDrop searches RAWG for catalog games without a RAWG ID. It accepts a single
-result whose title matches after normalizing case, punctuation, trademarks and
-edition words. An exact match keeps similar games from being assigned the wrong
-metadata. The worker preserves existing fields and links. It remembers
-unmatched, ambiguous and conflicting games in Redis for seven days.
-Enrichment runs on the existing worker at concurrency one, sharing its Redis
-queue polling with deal sync.
-
-| API environment variable    | Default | Effect                                                         |
-| --------------------------- | ------- | -------------------------------------------------------------- |
-| `RAWG_API_KEY`              | Unset   | Enables enrichment. The API and worker still start without it. |
-| `RAWG_MAX_REQUESTS_PER_RUN` | 30      | Caps outbound RAWG requests, including retries.                |
-| `RAWG_ENRICH_BATCH_SIZE`    | 15      | Caps games examined per run. On-sale games go first.           |
-| `ENRICH_INTERVAL_MINUTES`   | 60      | Sets the recurring worker interval within 30 to 240 minutes.   |
-
-Keep the key in the ignored root `.env`. Use `DIRECT_URL_PHASE5_TEST` and
-`DATABASE_URL_PHASE5_TEST` for the isolated `lootdrop / phase-5-test / neondb`
-child branch. The guard verifies the configured endpoints, gives the subprocess
-an isolated queue prefix and disables repeatable schedules.
-
-```powershell
-node scripts/phase5-test-guard.mjs --check-only
-node scripts/phase5-test-guard.mjs -- npm run enrich:once -- --limit 10
-```
-
-To reproduce the full check, build the shared contracts and run the guarded
-script. It enriches two batches on the child branch and verifies that the second
-batch leaves the previously enriched rows and their link counts intact.
-
-```powershell
-npm.cmd run build --workspace=@dealhunter/contracts
-node scripts/phase5-test-guard.mjs -- node scripts/phase5-live-check.mjs
-```
-
-For a browser check, start the guarded API in one PowerShell window and run
-`npm.cmd run dev:web` in another. Open [LootDrop](http://localhost:5173). Add
-`--without-key` before the guard's `--` to exercise startup with enrichment
-disabled. Previously saved metadata remains visible when enrichment is disabled.
-
-```powershell
-npm.cmd run build --workspace=@dealhunter/contracts
-node scripts/phase5-test-guard.mjs -- node --import tsx apps/api/src/server.ts
-```
-
-On a catalog awaiting enrichment, games without cover URLs show placeholders
-and empty filters are hidden. After enrichment, select genre and platform
-filters, refresh to confirm they stay selected, and open a game to inspect its
-cover, ratings, release date, taxonomy and description.
-
-RAWG requires credit and an active link on each page that uses its data or
-images. LootDrop links to RAWG in the site footer and on game detail pages.
-[RAWG API terms](https://rawg.io/tos_api)
-
-## Currency display
-
-Use the header's **Currency** selector to display prices in USD, INR, or EUR.
-The app marks converted prices with **≈** and keeps the original amount in the
-price's tooltip. It uses ECB reference rates from the keyless Frankfurter API.
-Stores may charge different regional prices. Historical graphs apply the latest
-available reference rate to every point. [Frankfurter terms](https://frankfurter.dev/license/)
-
-Conversion happens in the browser. Stored prices and history, filters, sorting,
-alert targets, and emails use the original listing currency. Dashboard price
-filter inputs use USD for the tracked catalog and show that unit when you
-select INR or EUR. Alert target inputs show their listing currency.
-
-The public `GET /api/v1/rates` endpoint fetches rates on demand. Redis keeps a
-fresh copy for 24 hours and a last-known copy for seven days. The API serves
-last-known rates during provider failures and returns HTTP 503 if no usable
-rates remain. The web app uses original prices when rates are unavailable.
-The rate timestamp records the provider's reference date in UTC.
-
-Accounts load their saved preference from `GET /api/v1/auth/me` and save through
-`PATCH /api/v1/me/preferences`. Guests use `lootdrop.currency` in local storage.
-Signing out restores the guest choice or USD.
-
-### Currency browser and live checks
-
-Start the guarded child-branch API in one PowerShell window.
-
-```powershell
-npm.cmd run build --workspace=@dealhunter/contracts
-node scripts/phase5-test-guard.mjs --without-key -- node --import tsx apps/api/src/server.ts
-```
-
-In another window, run `npm.cmd run dev:web` and open
-[LootDrop](http://localhost:5173).
-
-1. Switch USD, INR, and EUR on the dashboard, then check a game page, its price
-   chart, the wishlist, and the alerts page. Hover a converted price to see the
-   original amount. Check that price inputs still show their original units.
-2. As a guest, refresh and confirm the choice persists. Sign in with a test
-   account, save a different currency, and refresh again. Sign out and confirm
-   the guest choice returns.
-3. Stop the API and reload. The site shows its existing loading errors for
-   unavailable deal data. If prices are already loaded and the rates request
-   fails, they display in their original currency with an exchange-rate notice.
-
-To run the HTTP and database checks with two automatically cleaned-up
-throwaway accounts, use the guarded script from the repository root.
-
-```powershell
-node scripts/phase5-test-guard.mjs --without-key -- node --import tsx scripts/phase5b-live-check.mjs
-```
+See the [known issues](docs/known-issues.md), [security policy](SECURITY.md), [security review](docs/phase-6-security-review.md), and [performance measurements](docs/phase-6-performance.md). Price conversions are estimates, games without an unambiguous metadata match can remain uncategorized, and accounts currently lack email verification and password reset. Phase 7 covers deployment, hosted readiness checks, and observing real traffic and Redis usage.
