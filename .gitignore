@@ -3,8 +3,17 @@ dist/
 coverage/
 .env
 .env.*.local
+.env.*
 !.env.example
 .DS_Store
 npm-debug.log*
 test-results/
 playwright-report/
+.agents/
+skills-lock.json
+.vscode/
+*.log
+*.log.*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
