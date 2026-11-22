@@ -1,20 +1,15 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { dealSortOptions } from '@dealhunter/contracts';
-import { AuthPage } from './auth/AuthPage.js';
 import { AuthProvider, useAuth } from './auth/AuthProvider.js';
 import { AccountMenu } from './components/AccountMenu.js';
 import { CurrencyProvider, useCurrency } from './components/CurrencyProvider.js';
 import { CuratedDealSection } from './components/CuratedDealSection.js';
 import { DealCard } from './components/DealCard.js';
 import { GameAutocomplete } from './components/GameAutocomplete.js';
-import { GameDetailPage } from './components/GameDetailPage.js';
 import { RawgAttribution } from './components/GameMedia.js';
 import { TaxonomyFilter } from './components/TaxonomyFilter.js';
-import { WishlistPage } from './components/WishlistPage.js';
-import { AlertsPage } from './components/AlertsPage.js';
-import { NotificationsPage } from './components/NotificationsPage.js';
 import {
   getBestDeals,
   getDeals,
@@ -24,6 +19,26 @@ import {
   getTaxonomy,
   type DealQueryParams,
 } from './lib/api-client.js';
+
+const AuthPage = lazy(() =>
+  import('./auth/AuthPage.js').then(({ AuthPage }) => ({ default: AuthPage })),
+);
+const GameDetailPage = lazy(() =>
+  import('./components/GameDetailPage.js').then(({ GameDetailPage }) => ({
+    default: GameDetailPage,
+  })),
+);
+const WishlistPage = lazy(() =>
+  import('./components/WishlistPage.js').then(({ WishlistPage }) => ({ default: WishlistPage })),
+);
+const AlertsPage = lazy(() =>
+  import('./components/AlertsPage.js').then(({ AlertsPage }) => ({ default: AlertsPage })),
+);
+const NotificationsPage = lazy(() =>
+  import('./components/NotificationsPage.js').then(({ NotificationsPage }) => ({
+    default: NotificationsPage,
+  })),
+);
 
 function readNumber(searchParams: URLSearchParams, name: string): number | undefined {
   const raw = searchParams.get(name);
@@ -547,7 +562,17 @@ export default function AppRouter() {
   return (
     <AuthProvider>
       <CurrencyProvider>
-        <AppRoutes />
+        <Suspense
+          fallback={
+            <main className="page-shell">
+              <p className="request-state" role="status">
+                Loading page…
+              </p>
+            </main>
+          }
+        >
+          <AppRoutes />
+        </Suspense>
         <footer className="site-footer">
           <p className="currency-footnote">
             Prices in INR and EUR are approximate conversions of USD store prices. Stores may charge
