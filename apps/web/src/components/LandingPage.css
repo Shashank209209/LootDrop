@@ -1,0 +1,317 @@
+#root:has(> .landing-shell) {
+  display: flex;
+  flex-direction: column;
+}
+
+.landing-shell {
+  color-scheme: light;
+  --landing-bg: #f8f6ef;
+  --landing-ink: #191917;
+  --landing-muted: #57534b;
+  --landing-line: #d9d3c8;
+  --landing-accent: #963600;
+  --landing-tint: #f6e6d8;
+  flex: 1;
+  background: var(--landing-bg);
+  color: var(--landing-ink);
+}
+
+.landing-shell[data-theme='dark'] {
+  color-scheme: dark;
+  --landing-bg: #171715;
+  --landing-ink: #fcf7ec;
+  --landing-muted: #c8c0b3;
+  --landing-line: #474237;
+  --landing-accent: #ff9e59;
+  --landing-tint: #3b281c;
+}
+
+.landing-header,
+.landing-content {
+  width: min(100% - 2.5rem, 76rem);
+  margin-inline: auto;
+}
+
+.landing-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 5.4rem;
+  border-bottom: 1px solid var(--landing-line);
+}
+
+.landing-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 1.28rem;
+  font-weight: 850;
+  letter-spacing: -0.055em;
+}
+
+.landing-mark {
+  display: grid;
+  width: 2.15rem;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 0.57rem;
+  background: #ff9450;
+  color: #25150e;
+  font:
+    italic 900 1.45rem/1 system-ui,
+    sans-serif;
+}
+
+.landing-theme,
+.landing-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.65rem;
+  font-weight: 750;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease;
+}
+
+.landing-theme {
+  gap: 0.5rem;
+  min-height: 44px;
+  padding: 0.44rem 0.82rem;
+  border: 1px solid var(--landing-line);
+  background: transparent;
+  color: var(--landing-ink);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.landing-theme:hover,
+.landing-theme[aria-pressed='true'],
+.landing-actions .landing-login:hover {
+  border-color: var(--landing-accent);
+  background: var(--landing-tint);
+}
+
+.landing-shell :is(a, button):focus-visible {
+  outline-color: var(--landing-accent);
+}
+
+.landing-content {
+  padding: clamp(2.2rem, 5.7vw, 5.6rem) 0 clamp(2rem, 5vw, 4.5rem);
+}
+
+.landing-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.94fr) minmax(0, 1.06fr);
+  align-items: center;
+  gap: clamp(2rem, 5vw, 5rem);
+}
+
+.landing-kicker {
+  color: var(--landing-accent);
+  font-size: 0.79rem;
+  font-weight: 800;
+  letter-spacing: 0.135em;
+  text-transform: uppercase;
+}
+
+.landing-copy h1 {
+  max-width: 9ch;
+  margin: 0.65rem 0 1.4rem;
+  font-size: clamp(3rem, 6.2vw, 6.05rem);
+  font-weight: 850;
+  letter-spacing: -0.06em;
+  line-height: 0.96;
+}
+
+.landing-copy h1 span {
+  display: block;
+  color: var(--landing-accent);
+}
+
+.landing-description {
+  max-width: 35ch;
+  color: var(--landing-muted);
+  font-size: clamp(1rem, 1.42vw, 1.18rem);
+  line-height: 1.65;
+}
+
+.landing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1.6rem;
+}
+
+.landing-actions a {
+  min-height: 50px;
+  padding: 0.72rem 1.05rem;
+  border: 1px solid transparent;
+  text-decoration: none;
+}
+
+.landing-actions .landing-cta {
+  gap: 0.6rem;
+  background: #ff9450;
+  color: #25150e;
+}
+
+.landing-actions .landing-cta:hover {
+  background: #ffad77;
+}
+
+.landing-actions .landing-login {
+  border-color: var(--landing-line);
+  color: var(--landing-ink);
+}
+
+.landing-visual {
+  position: relative;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid #423028;
+  border-radius: clamp(0.9rem, 2vw, 1.6rem);
+  background: #211b19;
+}
+
+.landing-visual img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1.25;
+  object-fit: cover;
+}
+
+.landing-preview {
+  position: absolute;
+  right: 0.7rem;
+  bottom: 0.7rem;
+  left: 0.7rem;
+  display: flex;
+  align-items: center;
+  gap: 0.68rem;
+  width: fit-content;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid #685246;
+  border-radius: 0.85rem;
+  background: #221c18;
+  color: #fff2e6;
+  font-size: 0.82rem;
+}
+
+.landing-preview-icon,
+.landing-feature-icon {
+  display: grid;
+  width: 2.5rem;
+  flex: 0 0 auto;
+  aspect-ratio: 1;
+  place-items: center;
+  border-radius: 0.65rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.landing-preview-icon {
+  background: #ff9450;
+  color: #25150e;
+}
+
+.landing-preview-label {
+  display: block;
+  color: #ffb37f;
+  font-size: 0.72rem;
+}
+
+.landing-benefits {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: clamp(1rem, 3vw, 2.5rem);
+  margin-top: clamp(2rem, 5vw, 4.5rem);
+  padding-top: clamp(1.35rem, 3vw, 2rem);
+  border-top: 1px solid var(--landing-line);
+}
+
+.landing-feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.landing-feature-icon {
+  background: var(--landing-tint);
+  color: var(--landing-accent);
+}
+
+.landing-feature h2 {
+  margin-bottom: 0.25rem;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+.landing-feature p {
+  color: var(--landing-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.landing-shell + .site-footer {
+  padding-block: 1.4rem;
+  border-top: 1px solid #d9d3c8;
+  background: #f8f6ef;
+}
+
+.landing-shell + .site-footer .currency-footnote {
+  margin-top: 0.4rem;
+  line-height: 1.6;
+}
+
+.landing-shell + .site-footer .currency-footnote a {
+  display: inline;
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
+.landing-shell[data-theme='dark'] + .site-footer {
+  border-color: #474237;
+  background: #171715;
+  color: #fcf7ec;
+}
+
+.landing-shell[data-theme='dark'] + .site-footer .currency-footnote {
+  color: #c8c0b3;
+}
+
+.landing-shell[data-theme='dark'] + .site-footer a {
+  color: #ff9e59;
+}
+
+.landing-shell + .site-footer a {
+  transition: none;
+}
+
+@media (max-width: 760px) {
+  .landing-header {
+    min-height: 4.4rem;
+  }
+
+  .landing-hero,
+  .landing-benefits {
+    grid-template-columns: 1fr;
+  }
+
+  .landing-copy h1 {
+    max-width: 12ch;
+    text-wrap: balance;
+  }
+
+  .landing-visual {
+    max-width: 34rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-shell :is(a, button) {
+    transition: none;
+  }
+}

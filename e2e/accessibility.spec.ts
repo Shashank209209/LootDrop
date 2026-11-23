@@ -64,6 +64,38 @@ for (const screen of screens) {
   }
 }
 
+test('landing page follows the system theme and remembers an accessible dark mode override', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await mockApi(page);
+  await page.goto('/');
+  const toggle = page.getByRole('button', { name: 'Dark mode' });
+  const shell = page.locator('.landing-shell');
+  await expect(shell.locator('.landing-hero')).toHaveCSS('display', 'grid');
+  await expect(shell.locator('.landing-visual img')).toHaveJSProperty('naturalWidth', 1200);
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell).toHaveCSS('color-scheme', 'dark');
+  await toggle.click();
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(shell).toHaveCSS('color-scheme', 'light');
+
+  await page.emulateMedia({ colorScheme: 'light' });
+  await toggle.focus();
+  await toggle.press('Enter');
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(shell).toHaveCSS('color-scheme', 'dark');
+  await expect(page.getByRole('contentinfo')).toHaveCSS('background-color', 'rgb(23, 23, 21)');
+  const { violations } = await new AxeBuilder({ page }).analyze();
+  expect(
+    violations.filter(
+      ({ impact, id }) => impact === 'serious' || impact === 'critical' || id === 'color-contrast',
+    ),
+  ).toEqual([]);
+});
+
 test('keyboard focus, autocomplete, and the alert dialog', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await mockApi(page, { authenticated: true, populated: false, error: false });

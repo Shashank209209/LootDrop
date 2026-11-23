@@ -370,6 +370,8 @@ describe('catalog access', () => {
     const { user } = renderDashboard();
     await screen.findByRole('heading', { name: 'Find your next game for less.' });
     await user.tab();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Dark mode' }));
+    await user.tab();
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Create an account' }));
     await user.tab();
     expect(document.activeElement).toBe(screen.getByRole('link', { name: 'Log in' }));
