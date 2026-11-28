@@ -53,11 +53,14 @@ model User {
   id                String         @id @default(uuid()) @db.Uuid
   email             String         @unique @db.VarChar(320)
   passwordHash      String         @map("password_hash")
+  passwordVersion   Int            @default(0) @map("password_version")
+  emailVerifiedAt   DateTime?      @map("email_verified_at") @db.Timestamptz(6)
   displayName       String         @map("display_name") @db.VarChar(120)
   preferredCurrency String         @default("USD") @map("preferred_currency") @db.Char(3)
   createdAt         DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
   refreshTokens     RefreshToken[]
+  accountLinks      AccountLink[]
   wishlists         Wishlist[]
   priceAlerts       PriceAlert[]
   notifications     Notification[]
@@ -66,16 +69,35 @@ model User {
 }
 
 model RefreshToken {
-  id        String    @id @default(uuid()) @db.Uuid
-  userId    String    @map("user_id") @db.Uuid
-  tokenHash String    @unique @map("token_hash")
-  expiresAt DateTime  @map("expires_at") @db.Timestamptz(6)
-  revokedAt DateTime? @map("revoked_at") @db.Timestamptz(6)
-  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  tokenHash       String    @unique @map("token_hash")
+  passwordVersion Int       @default(0) @map("password_version")
+  expiresAt       DateTime  @map("expires_at") @db.Timestamptz(6)
+  revokedAt       DateTime? @map("revoked_at") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
   @@map("refresh_tokens")
+}
+
+enum AccountLinkPurpose {
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+
+  @@map("account_link_purpose")
+}
+
+model AccountLink {
+  userId    String             @map("user_id") @db.Uuid
+  purpose   AccountLinkPurpose
+  tokenHash String             @unique @map("token_hash")
+  expiresAt DateTime           @map("expires_at") @db.Timestamptz(6)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, purpose])
+  @@map("account_links")
 }
 
 model Game {

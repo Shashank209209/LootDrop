@@ -3,6 +3,7 @@ import { lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { dealSortOptions } from '@lootdrop/contracts';
 import { AuthProvider, useAuth } from './auth/AuthProvider.js';
+import { EmailVerificationNotice } from './auth/EmailVerificationNotice.js';
 import { AccountMenu } from './components/AccountMenu.js';
 import { CurrencyProvider, useCurrency } from './components/CurrencyProvider.js';
 import { CuratedDealSection } from './components/CuratedDealSection.js';
@@ -23,6 +24,11 @@ import {
 
 const AuthPage = lazy(() =>
   import('./auth/AuthPage.js').then(({ AuthPage }) => ({ default: AuthPage })),
+);
+const AccountLinkPage = lazy(() =>
+  import('./auth/AccountLinkPage.js').then(({ AccountLinkPage }) => ({
+    default: AccountLinkPage,
+  })),
 );
 const GameDetailPage = lazy(() =>
   import('./components/GameDetailPage.js').then(({ GameDetailPage }) => ({
@@ -60,7 +66,13 @@ function readSlugs(params: URLSearchParams, key: 'genre' | 'platform') {
   ];
 }
 
-function Dashboard({ displayName }: { displayName: string }) {
+function Dashboard({
+  displayName,
+  emailVerified,
+}: {
+  displayName: string;
+  emailVerified?: boolean | undefined;
+}) {
   const { currency } = useCurrency();
   const priceUnit = currency === 'USD' ? '' : ' (USD)';
   const [searchParams, setSearchParams] = useSearchParams();
@@ -225,6 +237,8 @@ function Dashboard({ displayName }: { displayName: string }) {
             <AccountMenu />
           </div>
         </header>
+
+        {emailVerified === false ? <EmailVerificationNotice /> : null}
 
         <section className="hero-panel">
           <div>
@@ -499,6 +513,9 @@ function AppRoutes() {
       ['/notifications', 'Notifications'],
       ['/login', 'Log in'],
       ['/register', 'Register'],
+      ['/forgot-password', 'Forgot your password'],
+      ['/reset-password', 'Reset your password'],
+      ['/verify-email', 'Verify your email'],
     ]);
     if (!/^\/games\/[^/]+\/?$/i.test(pathname)) {
       document.title = `${titles.get(pathname.replace(/\/$/, '').toLowerCase() || '/') ?? 'Page not found'} | LootDrop`;
@@ -520,7 +537,10 @@ function AppRoutes() {
         path="/"
         element={
           state.status === 'authenticated' ? (
-            <Dashboard displayName={state.user.displayName} />
+            <Dashboard
+              displayName={state.user.displayName}
+              emailVerified={state.user.emailVerified}
+            />
           ) : (
             <LandingPage />
           )
@@ -560,6 +580,15 @@ function AppRoutes() {
       />
       <Route path="/login" element={<AuthPage mode="login" />} />
       <Route path="/register" element={<AuthPage mode="register" />} />
+      <Route
+        path="/forgot-password"
+        element={<AccountLinkPage key="request" mode="request-reset" />}
+      />
+      <Route
+        path="/reset-password"
+        element={<AccountLinkPage key="reset" mode="reset-password" />}
+      />
+      <Route path="/verify-email" element={<AccountLinkPage key="verify" mode="verify-email" />} />
       <Route
         path="*"
         element={

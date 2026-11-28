@@ -12,6 +12,7 @@ import {
   dealsQuerySchema,
   dealsResponseSchema,
   authSessionResponseSchema,
+  forgotPasswordRequestSchema,
   freeDealsQuerySchema,
   gameDetailResponseSchema,
   gameSearchQuerySchema,
@@ -30,10 +31,12 @@ import {
   priceHistoryResponseSchema,
   refreshResponseSchema,
   registerRequestSchema,
+  resetPasswordRequestSchema,
   storesResponseSchema,
   taxonomyResponseSchema,
   createAlertRequestSchema,
   updateAlertRequestSchema,
+  verifyEmailRequestSchema,
   wishlistAddRequestSchema,
   wishlistIdsResponseSchema,
   wishlistQuerySchema,
@@ -230,6 +233,49 @@ registry.registerPath({
     401: response(errorSchema, 'Authentication required'),
   },
 });
+
+for (const { path, summary, schema, authenticated, requestEmail } of [
+  {
+    path: '/api/v1/auth/forgot-password',
+    summary: 'Request a password reset link',
+    schema: forgotPasswordRequestSchema,
+    requestEmail: true,
+  },
+  {
+    path: '/api/v1/auth/reset-password',
+    summary: 'Consume a reset link and change the password',
+    schema: resetPasswordRequestSchema,
+  },
+  {
+    path: '/api/v1/auth/verify-email',
+    summary: 'Verify the signed-in account with a verification link',
+    schema: verifyEmailRequestSchema,
+    authenticated: true,
+  },
+  {
+    path: '/api/v1/auth/resend-verification',
+    summary: 'Request another verification link for the signed-in account',
+    authenticated: true,
+    requestEmail: true,
+  },
+]) {
+  registry.registerPath({
+    method: 'post',
+    path,
+    summary,
+    ...(schema ? { request: { body: { content: { 'application/json': { schema } } } } } : {}),
+    ...(authenticated ? { security: [{ bearerAuth: [] }] } : {}),
+    responses: {
+      204: { description: requestEmail ? 'Request accepted' : 'Account link consumed' },
+      ...(schema ? { 400: response(errorSchema, 'Invalid request or account link') } : {}),
+      ...(authenticated ? { 401: response(errorSchema, 'Authentication required') } : {}),
+      403: response(errorSchema, 'Untrusted request origin'),
+      429: response(errorSchema, 'Too many authentication attempts'),
+      ...(requestEmail ? { 503: response(errorSchema, 'Account email unavailable') } : {}),
+    },
+  });
+}
+
 registry.registerPath({
   method: 'get',
   path: '/api/v1/alerts',

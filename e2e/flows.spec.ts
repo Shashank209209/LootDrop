@@ -93,6 +93,51 @@ test('registers and signs in, manages a wishlist and alert, and opens notificati
   await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
 });
 
+test('requests a password reset and submits a new password from the email link', async ({
+  page,
+}) => {
+  await mockApi(page);
+  await page.goto('/login');
+  await page.getByRole('link', { name: 'Forgot your password?' }).click();
+  await expect(page.getByRole('heading', { name: 'Forgot your password?' })).toBeVisible();
+  await page.getByLabel('Email address').fill(fixtureEmail);
+  await page.getByRole('button', { name: 'Send reset link' }).click();
+  await expect(page.getByRole('status')).toContainText('If an account exists');
+
+  await page.goto(`/reset-password#token=${'a'.repeat(43)}`);
+  await page.getByLabel('New password', { exact: true }).fill(fixturePassword);
+  await page.getByLabel('Confirm new password').fill('different-fixture-password');
+  await page.getByRole('button', { name: 'Save new password' }).click();
+  await expect(page.getByRole('alert')).toHaveText('The passwords do not match.');
+  await page.getByLabel('Confirm new password').fill(fixturePassword);
+  await page.getByRole('button', { name: 'Save new password' }).click();
+  await expect(page.getByRole('status')).toContainText('Your password has been reset');
+  await expect(page).toHaveURL(/\/reset-password$/);
+  await page.getByRole('link', { name: 'Back to log in' }).click();
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible();
+});
+
+test('signs in from a verification link and confirms the email address', async ({ page }) => {
+  await mockApi(page, {
+    authenticated: false,
+    populated: false,
+    error: false,
+    emailVerified: false,
+  });
+  const route = `/verify-email#token=${'b'.repeat(43)}`;
+  await page.goto(route);
+  await page.getByRole('link', { name: 'Log in to verify' }).click();
+  await credentials(page);
+  await page.getByRole('button', { name: 'Log in' }).click();
+  await expect(page).toHaveURL((url) => url.pathname + url.hash === route);
+  await page.getByRole('button', { name: 'Verify email address' }).click();
+  await expect(page.getByRole('status')).toHaveText('Your email address is verified.');
+  await expect(page).toHaveURL(/\/verify-email$/);
+  await page.getByRole('link', { name: 'Back to your account' }).click();
+  await expect(page.getByRole('heading', { name: 'Welcome back, Demo Player' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Email verification' })).toHaveCount(0);
+});
+
 test('recovers from a deals API error using Retry', async ({ page }) => {
   const api = await mockApi(page, { authenticated: true, populated: false, error: true });
   await page.goto('/');

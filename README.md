@@ -65,6 +65,13 @@ In separate terminals run `npm run dev:api`, `npm run dev:web`, and `npm run wor
 
 Run the seed on a local database and log in as `demo@lootdrop.local` with the password you set through `DEMO_USER_PASSWORD` in the seed settings. Open a deal, switch to INR, review its price chart, save it to the wishlist, and create a price alert. For an offline preview with predictable data, use the screenshots or mocked browser suite.
 
+## Account email
+
+- Set `EMAIL_PROVIDER=resend`, `RESEND_API_KEY`, and `EMAIL_FROM` with a Resend-verified sending domain to deliver verification and reset emails. Keep click tracking disabled for these emails. Set `WEB_ORIGIN` to the exact frontend origin used to open links.
+- After the account-links migration is applied, new registrations receive a verification email. Existing users can request one from the catalog. Verification requires signing in to the matching account. Unverified users retain catalog access.
+- The login page offers **Forgot your password?**. Reset links expire after 30 minutes and verification links after 24 hours. Links can be used once. Resetting the password revokes refresh sessions and prompts the user to sign in again. Previously issued access tokens expire within 15 minutes.
+- With the default `log` provider, the app does not send account emails. Automated tests use mock delivery.
+
 ## Environment variables
 
 | Variable                                                                                                               | Requirement or default                                                                                              |
@@ -125,7 +132,7 @@ Open Swagger UI at `/docs` or fetch the specification from `/docs/openapi.json`.
 
 ## Limitations and roadmap
 
-See the [known issues](docs/known-issues.md), [security policy](SECURITY.md), [security review](docs/phase-6-security-review.md), and [performance measurements](docs/phase-6-performance.md). Price conversions are estimates, games without an unambiguous metadata match can remain uncategorized, and accounts currently lack email verification and password reset. Phase 7 covers deployment, hosted readiness checks, and observing real traffic and Redis usage.
+See the [known issues](docs/known-issues.md), [security policy](SECURITY.md), [security review](docs/phase-6-security-review.md), and [performance measurements](docs/phase-6-performance.md). Price conversions are estimates and games without an unambiguous metadata match can remain uncategorized. Phase 7 covers deployment, hosted readiness checks, and observing real traffic and Redis usage.
 
 ## License
 

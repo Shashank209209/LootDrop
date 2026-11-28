@@ -39,6 +39,7 @@ export function createResendMailer(input: {
     async send(message) {
       const response = await fetcher('https://api.resend.com/emails', {
         method: 'POST',
+        signal: AbortSignal.timeout(10_000),
         headers: {
           Authorization: `Bearer ${input.apiKey}`,
           'Content-Type': 'application/json',

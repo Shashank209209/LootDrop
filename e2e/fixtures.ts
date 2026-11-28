@@ -62,14 +62,28 @@ const pagination = (page: number, count: number, totalPages = 1) => ({
 
 export async function mockApi(
   page: Page,
-  options = { authenticated: false, populated: false, error: false },
+  options: {
+    authenticated: boolean;
+    populated: boolean;
+    error: boolean;
+    emailVerified?: boolean;
+  } = {
+    authenticated: false,
+    populated: false,
+    error: false,
+  },
 ) {
   let signedIn = options.authenticated;
   let wishlisted = options.populated;
   let alert: typeof conditions | null = options.populated ? { ...conditions } : null;
   let preferredCurrency = 'USD';
   let failDeals = options.error;
-  const user = { id: gameId, email: fixtureEmail, displayName: 'Demo Player' };
+  const user = {
+    id: gameId,
+    email: fixtureEmail,
+    displayName: 'Demo Player',
+    emailVerified: options.emailVerified,
+  };
   const session = () => ({ user, accessToken: ['mock', 'browser', 'session'].join('-') });
   await page.route('**/api/v1/**', async (route) => {
     const request = route.request();
@@ -86,6 +100,18 @@ export async function mockApi(
     }
     if (path === '/auth/logout') {
       signedIn = false;
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/auth/forgot-password') return route.fulfill({ status: 204 });
+    if (path === '/auth/reset-password') {
+      signedIn = false;
+      return route.fulfill({ status: 204 });
+    }
+    if (path === '/auth/resend-verification')
+      return signedIn ? route.fulfill({ status: 204 }) : unauthorized();
+    if (path === '/auth/verify-email') {
+      if (!signedIn) return unauthorized();
+      user.emailVerified = true;
       return route.fulfill({ status: 204 });
     }
     if (path === '/auth/me')

@@ -202,6 +202,7 @@ export function AuthPage({ mode }: { mode: AuthMode }) {
             <button type="submit" className="primary-button" disabled={isPending}>
               {isPending ? 'Please wait…' : mode === 'login' ? 'Log in' : 'Create account'}
             </button>
+            {mode === 'login' ? <Link to="/forgot-password">Forgot your password?</Link> : null}
           </form>
         </div>
       </div>

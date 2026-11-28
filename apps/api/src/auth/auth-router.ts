@@ -1,15 +1,20 @@
 import { Prisma, type PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
-import { createHash, randomBytes } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 import express, { type Request, type Response, type Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import {
   displayCurrencySchema,
+  forgotPasswordRequestSchema,
   loginRequestSchema,
   registerRequestSchema,
+  resetPasswordRequestSchema,
+  verifyEmailRequestSchema,
   type AuthUser,
 } from '@lootdrop/contracts';
+import type { Mailer } from '../alerts/mailer.js';
 import { sendApiError } from '../http/api-error.js';
+import { consumeAccountLink, sendAccountLink, tokenHash } from './account-links.js';
 import { signAccessToken } from './jwt.js';
 import { hashSeedPassword } from './password.js';
 import { createRequireAuth } from './require-auth.js';
@@ -22,10 +27,11 @@ const publicUserSelect = {
   id: true,
   email: true,
   displayName: true,
+  emailVerifiedAt: true,
 } satisfies Prisma.UserSelect;
 
 type PublicUserRecord = Prisma.UserGetPayload<{ select: typeof publicUserSelect }>;
-type AuthDatabase = Pick<PrismaClient, '$transaction' | 'user' | 'refreshToken'>;
+type AuthDatabase = Pick<PrismaClient, '$transaction' | 'user' | 'refreshToken' | 'accountLink'>;
 type RefreshTokenDelegate = Pick<Prisma.TransactionClient, 'refreshToken'>;
 
 export type AuthRouterOptions = {
@@ -36,14 +42,17 @@ export type AuthRouterOptions = {
   cookieSameSite: 'lax' | 'strict' | 'none';
   rateLimitWindowMs: number;
   rateLimitMax: number;
+  accountMailer?: Mailer;
+  onAccountEmailError?: () => void;
 };
 
 function toAuthUser(user: PublicUserRecord): AuthUser {
-  return { id: user.id, email: user.email, displayName: user.displayName };
-}
-
-function tokenHash(token: string): string {
-  return createHash('sha256').update(token).digest('hex');
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.displayName,
+    emailVerified: Boolean(user.emailVerifiedAt),
+  };
 }
 
 function readRefreshCookie(request: Request): string | null {
@@ -84,11 +93,13 @@ function clearRefreshCookie(response: Response, options: AuthRouterOptions): voi
 async function createRefreshToken(
   transaction: RefreshTokenDelegate,
   userId: string,
+  passwordVersion: number,
 ): Promise<string> {
   const rawToken = randomBytes(32).toString('base64url');
   await transaction.refreshToken.create({
     data: {
       userId,
+      passwordVersion,
       tokenHash: tokenHash(rawToken),
       expiresAt: new Date(Date.now() + refreshTokenLifetimeMs),
     },
@@ -135,6 +146,18 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
       sendApiError(response, 429, 'RATE_LIMITED', 'Too many authentication attempts');
     },
   });
+  const mailer = options.accountMailer;
+  function queueAccountEmail(task: () => Promise<void>) {
+    void task().catch(() => options.onAccountEmailError?.());
+  }
+
+  const requireAccountMailer: express.RequestHandler = (_request, response, next) => {
+    if (!mailer) {
+      sendApiError(response, 503, 'ACCOUNT_EMAIL_UNAVAILABLE', 'Account email is unavailable');
+      return;
+    }
+    next();
+  };
 
   router.post('/register', authRateLimit, async (request, response, next) => {
     const parsed = registerRequestSchema.safeParse(request.body);
@@ -154,7 +177,7 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
           },
           select: publicUserSelect,
         });
-        const refreshToken = await createRefreshToken(transaction, user.id);
+        const refreshToken = await createRefreshToken(transaction, user.id, 0);
         return { user, refreshToken };
       });
 
@@ -164,6 +187,11 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
         user: toAuthUser(result.user),
         accessToken: signAccessToken(result.user.id, options.accessSecret, options.issuer),
       });
+      if (mailer) {
+        queueAccountEmail(() =>
+          sendAccountLink(database, mailer, options.webOrigin, result.user, 'EMAIL_VERIFICATION'),
+        );
+      }
     } catch (error) {
       if (isUniqueConstraintError(error)) {
         sendApiError(
@@ -189,7 +217,7 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
       const [user, dummyHash] = await Promise.all([
         database.user.findUnique({
           where: { email: parsed.data.email },
-          select: { ...publicUserSelect, passwordHash: true },
+          select: { ...publicUserSelect, passwordHash: true, passwordVersion: true },
         }),
         dummyHashPromise,
       ]);
@@ -202,7 +230,7 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
         return;
       }
 
-      const refreshToken = await createRefreshToken(database, user.id);
+      const refreshToken = await createRefreshToken(database, user.id, user.passwordVersion);
       response.setHeader('Cache-Control', 'no-store');
       setRefreshCookie(response, refreshToken, options);
       response.status(200).json({
@@ -230,15 +258,18 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
           select: {
             id: true,
             userId: true,
+            passwordVersion: true,
             expiresAt: true,
             revokedAt: true,
-            user: { select: publicUserSelect },
+            user: { select: { ...publicUserSelect, passwordVersion: true } },
           },
         });
-        if (!stored) return { kind: 'invalid' as const };
+        if (!stored || stored.passwordVersion !== stored.user.passwordVersion) {
+          return { kind: 'invalid' as const };
+        }
         if (stored.revokedAt) {
           await transaction.refreshToken.updateMany({
-            where: { userId: stored.userId },
+            where: { userId: stored.userId, passwordVersion: stored.passwordVersion },
             data: { revokedAt: now },
           });
           return { kind: 'reuse' as const };
@@ -257,13 +288,17 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
         });
         if (revoked.count !== 1) {
           await transaction.refreshToken.updateMany({
-            where: { userId: stored.userId },
+            where: { userId: stored.userId, passwordVersion: stored.passwordVersion },
             data: { revokedAt: now },
           });
           return { kind: 'reuse' as const };
         }
 
-        const refreshToken = await createRefreshToken(transaction, stored.userId);
+        const refreshToken = await createRefreshToken(
+          transaction,
+          stored.userId,
+          stored.passwordVersion,
+        );
         return { kind: 'rotated' as const, refreshToken, user: stored.user };
       });
 
@@ -325,6 +360,122 @@ export function createAuthRouter(database: AuthDatabase, options: AuthRouterOpti
       next(error);
     }
   });
+
+  router.post(
+    '/forgot-password',
+    requireWebOrigin,
+    authRateLimit,
+    requireAccountMailer,
+    (request, response) => {
+      const parsed = forgotPasswordRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        sendInvalidBody(response, 'Enter a valid email address');
+        return;
+      }
+      response.setHeader('Cache-Control', 'no-store');
+      response.status(204).end();
+      queueAccountEmail(async () => {
+        const user = await database.user.findUnique({
+          where: { email: parsed.data.email },
+          select: { id: true, email: true },
+        });
+        if (user && mailer) {
+          await sendAccountLink(database, mailer, options.webOrigin, user, 'PASSWORD_RESET');
+        }
+      });
+    },
+  );
+
+  router.post(
+    '/resend-verification',
+    requireWebOrigin,
+    authRateLimit,
+    requireAuth,
+    requireAccountMailer,
+    (_request, response) => {
+      const userId = response.locals.userId as string;
+      response.setHeader('Cache-Control', 'no-store');
+      response.status(204).end();
+      queueAccountEmail(async () => {
+        const user = await database.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, emailVerifiedAt: true },
+        });
+        if (user && !user.emailVerifiedAt && mailer) {
+          await sendAccountLink(database, mailer, options.webOrigin, user, 'EMAIL_VERIFICATION');
+        }
+      });
+    },
+  );
+
+  router.post(
+    '/reset-password',
+    requireWebOrigin,
+    authRateLimit,
+    async (request, response, next) => {
+      const parsed = resetPasswordRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        sendInvalidBody(
+          response,
+          'A valid reset link and a password of 12 to 72 bytes are required',
+        );
+        return;
+      }
+      try {
+        const consumed = await consumeAccountLink(database, parsed.data.token, {
+          purpose: 'PASSWORD_RESET',
+          password: parsed.data.password,
+        });
+        if (!consumed) {
+          sendApiError(
+            response,
+            400,
+            'INVALID_ACCOUNT_LINK',
+            'This reset link is invalid or expired',
+          );
+          return;
+        }
+        clearRefreshCookie(response, options);
+        response.setHeader('Cache-Control', 'no-store');
+        response.status(204).end();
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
+
+  router.post(
+    '/verify-email',
+    requireWebOrigin,
+    authRateLimit,
+    requireAuth,
+    async (request, response, next) => {
+      const parsed = verifyEmailRequestSchema.safeParse(request.body);
+      if (!parsed.success) {
+        sendInvalidBody(response, 'A valid verification link is required');
+        return;
+      }
+      try {
+        const consumed = await consumeAccountLink(database, parsed.data.token, {
+          purpose: 'EMAIL_VERIFICATION',
+          userId: response.locals.userId as string,
+        });
+        if (!consumed) {
+          sendApiError(
+            response,
+            400,
+            'INVALID_ACCOUNT_LINK',
+            'This verification link is invalid or expired',
+          );
+          return;
+        }
+        response.setHeader('Cache-Control', 'no-store');
+        response.status(204).end();
+      } catch (error) {
+        next(error);
+      }
+    },
+  );
 
   return router;
 }

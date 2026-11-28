@@ -10,6 +10,7 @@ import type {
   DealsQuery,
   DealsResponse,
   DisplayCurrency,
+  ForgotPasswordRequest,
   GameDetailResponse,
   GameSearchResponse,
   HistoricalLowsResponse,
@@ -20,6 +21,7 @@ import type {
   PriceHistoryQuery,
   PriceHistoryResponse,
   RegisterRequest,
+  ResetPasswordRequest,
   StoreResponse,
   TaxonomyResponse,
   WishlistAddRequest,
@@ -185,6 +187,22 @@ export async function login(input: LoginRequest): Promise<AuthSessionResponse> {
   accessToken = session.accessToken;
   restoreInFlight = Promise.resolve(session);
   return session;
+}
+
+export function requestPasswordReset(input: ForgotPasswordRequest): Promise<void> {
+  return publicJson('/auth/forgot-password', jsonBody(input));
+}
+
+export function resetPassword(input: ResetPasswordRequest): Promise<void> {
+  return publicJson('/auth/reset-password', jsonBody(input));
+}
+
+export function verifyAccountEmail(token: string): Promise<void> {
+  return authenticatedJson('/auth/verify-email', jsonBody({ token }));
+}
+
+export function resendAccountVerification(): Promise<void> {
+  return authenticatedJson('/auth/resend-verification', { method: 'POST' });
 }
 
 export async function logout(): Promise<void> {

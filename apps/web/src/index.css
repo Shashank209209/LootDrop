@@ -444,6 +444,42 @@ img {
   gap: 18px;
 }
 
+.account-link-card {
+  display: grid;
+  gap: 16px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+.account-link-card h1 {
+  font-size: clamp(1.7rem, 5vw, 2.3rem);
+  font-weight: 750;
+}
+
+.account-link-card a,
+.auth-form > a {
+  width: fit-content;
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.email-verification-notice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  margin-bottom: 18px;
+  padding: 12px 16px;
+  border: 1px solid #99c7bd;
+  border-radius: 12px;
+  background: #e9f5f0;
+  color: #24463d;
+}
+
+.email-verification-notice [role='status'] {
+  flex-basis: 100%;
+}
+
 .auth-form label {
   display: grid;
   gap: 8px;

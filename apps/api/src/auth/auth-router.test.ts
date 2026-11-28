@@ -1,4 +1,4 @@
-import { Prisma, type PrismaClient } from '@prisma/client';
+import { Prisma, type AccountLink, type PrismaClient } from '@prisma/client';
 import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
@@ -6,6 +6,8 @@ import { hashSeedPassword } from './password.js';
 import { createAuthRouter, refreshCookieName } from './auth-router.js';
 import { createCurrencyRouter } from '../currency/currency-router.js';
 import { signAccessToken } from './jwt.js';
+import type { Mailer } from '../alerts/mailer.js';
+import { tokenHash } from './account-links.js';
 
 const accessSecret = 'unit-test-access-secret-longer-than-thirty-two-characters';
 const issuer = 'lootdrop-test';
@@ -22,6 +24,8 @@ type UserRecord = {
   email: string;
   displayName: string;
   passwordHash: string;
+  passwordVersion: number;
+  emailVerifiedAt: Date | null;
   preferredCurrency: string;
 };
 
@@ -29,6 +33,7 @@ type RefreshRecord = {
   id: string;
   userId: string;
   tokenHash: string;
+  passwordVersion: number;
   expiresAt: Date;
   revokedAt: Date | null;
 };
@@ -37,31 +42,44 @@ beforeAll(async () => {
   knownPasswordHash = await hashSeedPassword(knownPassword);
 });
 
-function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolean } = {}) {
+function createTestApi(
+  options: { rateLimitMax?: number; ratesAvailable?: boolean; accountMailer?: Mailer } = {},
+) {
   const users = new Map<string, UserRecord>();
   const refreshTokens = new Map<string, RefreshRecord>();
+  const links = new Map<string, AccountLink>();
   const knownUser = {
     id: knownUserId,
     email: knownEmail,
     displayName: knownDisplayName,
     passwordHash: knownPasswordHash,
+    passwordVersion: 0,
+    emailVerifiedAt: null,
     preferredCurrency: 'USD',
   };
   users.set(knownEmail, knownUser);
 
   const transaction = {
     user: {
-      create: vi.fn(async ({ data }: { data: Omit<UserRecord, 'id' | 'preferredCurrency'> }) => {
-        if (users.has(data.email)) {
-          throw new Prisma.PrismaClientKnownRequestError('unique constraint', {
-            code: 'P2002',
-            clientVersion: 'test',
-          });
-        }
-        const user = { preferredCurrency: 'USD', ...data, id: randomUUID() };
-        users.set(user.email, user);
-        return { id: user.id, email: user.email, displayName: user.displayName };
-      }),
+      create: vi.fn(
+        async ({ data }: { data: Pick<UserRecord, 'email' | 'displayName' | 'passwordHash'> }) => {
+          if (users.has(data.email)) {
+            throw new Prisma.PrismaClientKnownRequestError('unique constraint', {
+              code: 'P2002',
+              clientVersion: 'test',
+            });
+          }
+          const user = {
+            preferredCurrency: 'USD',
+            passwordVersion: 0,
+            emailVerifiedAt: null,
+            ...data,
+            id: randomUUID(),
+          };
+          users.set(user.email, user);
+          return user;
+        },
+      ),
       findUnique: vi.fn(
         async ({ where }: { where: { email?: string; id?: string } }) =>
           [...users.values()].find(
@@ -71,11 +89,87 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
           ) ?? null,
       ),
       update: vi.fn(
-        async ({ where, data }: { where: { id: string }; data: { preferredCurrency: string } }) => {
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: {
+            preferredCurrency?: string;
+            passwordHash?: string;
+            passwordVersion?: { increment: number };
+          };
+        }) => {
           const user = [...users.values()].find(({ id }) => id === where.id);
           if (!user) throw new Error('Unknown test user');
-          user.preferredCurrency = data.preferredCurrency;
+          if (data.preferredCurrency) user.preferredCurrency = data.preferredCurrency;
+          if (data.passwordHash) user.passwordHash = data.passwordHash;
+          user.passwordVersion += data.passwordVersion?.increment ?? 0;
           return { preferredCurrency: user.preferredCurrency };
+        },
+      ),
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string; emailVerifiedAt: null };
+          data: { emailVerifiedAt: Date };
+        }) => {
+          const user = [...users.values()].find(({ id }) => id === where.id);
+          if (!user || user.emailVerifiedAt !== where.emailVerifiedAt) return { count: 0 };
+          user.emailVerifiedAt = data.emailVerifiedAt;
+          return { count: 1 };
+        },
+      ),
+    },
+    accountLink: {
+      createMany: vi.fn(async ({ data }: { data: AccountLink }) => {
+        if (
+          [...links.values()].some(
+            (link) => link.userId === data.userId && link.purpose === data.purpose,
+          )
+        ) {
+          return { count: 0 };
+        }
+        links.set(data.tokenHash, data);
+        return { count: 1 };
+      }),
+      updateMany: vi.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { userId: string; purpose: AccountLink['purpose']; expiresAt: { lte: Date } };
+          data: Pick<AccountLink, 'tokenHash' | 'expiresAt'>;
+        }) => {
+          const link = [...links.values()].find(
+            (candidate) =>
+              candidate.userId === where.userId &&
+              candidate.purpose === where.purpose &&
+              candidate.expiresAt <= where.expiresAt.lte,
+          );
+          if (!link) return { count: 0 };
+          links.delete(link.tokenHash);
+          links.set(data.tokenHash, { ...link, ...data });
+          return { count: 1 };
+        },
+      ),
+      findUnique: vi.fn(
+        async ({ where }: { where: { tokenHash: string } }) => links.get(where.tokenHash) ?? null,
+      ),
+      deleteMany: vi.fn(
+        async ({
+          where,
+        }: {
+          where: { tokenHash: string; purpose: AccountLink['purpose']; expiresAt: { gt: Date } };
+        }) => {
+          const link = links.get(where.tokenHash);
+          if (!link || link.purpose !== where.purpose || link.expiresAt <= where.expiresAt.gt) {
+            return { count: 0 };
+          }
+          links.delete(where.tokenHash);
+          return { count: 1 };
         },
       ),
     },
@@ -95,7 +189,8 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
               userId: token.userId,
               expiresAt: token.expiresAt,
               revokedAt: token.revokedAt,
-              user: { id: user.id, email: user.email, displayName: user.displayName },
+              passwordVersion: token.passwordVersion,
+              user: { ...user },
             }
           : null;
       }),
@@ -104,7 +199,13 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
           where,
           data,
         }: {
-          where: { id?: string; tokenHash?: string; userId?: string; revokedAt?: null };
+          where: {
+            id?: string;
+            tokenHash?: string;
+            userId?: string;
+            revokedAt?: null;
+            passwordVersion?: number;
+          };
           data: { revokedAt: Date };
         }) => {
           let count = 0;
@@ -113,6 +214,8 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
               (where.id === undefined || token.id === where.id) &&
               (where.tokenHash === undefined || token.tokenHash === where.tokenHash) &&
               (where.userId === undefined || token.userId === where.userId) &&
+              (where.passwordVersion === undefined ||
+                token.passwordVersion === where.passwordVersion) &&
               (where.revokedAt !== null || token.revokedAt === null)
             ) {
               token.revokedAt = data.revokedAt;
@@ -166,6 +269,7 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
       cookieSameSite: 'lax',
       rateLimitWindowMs: 60_000,
       rateLimitMax: options.rateLimitMax ?? 10,
+      ...(options.accountMailer ? { accountMailer: options.accountMailer } : {}),
     }),
   );
   app.use(
@@ -186,6 +290,7 @@ function createTestApi(options: { rateLimitMax?: number; ratesAvailable?: boolea
 
   return {
     users,
+    links,
     refreshTokens,
     transaction,
     request: (path: string, init?: RequestInit) => {
@@ -212,6 +317,116 @@ function postJson(body: unknown): RequestInit {
     body: JSON.stringify(body),
   };
 }
+
+function accountEmailFixture() {
+  const send = vi.fn<Mailer['send']>().mockResolvedValue(undefined);
+  const api = createTestApi({ accountMailer: { send }, rateLimitMax: 30 });
+  const post = (path: string, body: unknown, userId?: string) => {
+    const init = postJson(body);
+    const headers = new Headers(init.headers);
+    if (userId)
+      headers.set('Authorization', `Bearer ${signAccessToken(userId, accessSecret, issuer)}`);
+    return api.request(path, { ...init, headers });
+  };
+  async function readLink(path: string) {
+    await vi.waitFor(() => expect(send).toHaveBeenCalled());
+    const message = send.mock.calls.at(-1)?.[0];
+    const emailUrl = message?.text.match(/https:\/\/[^\s]+/)?.[0];
+    if (!emailUrl) throw new Error('Expected a link in the test email');
+    const url = new URL(emailUrl);
+    expect(url.origin).toBe(webOrigin);
+    expect(url.pathname).toBe(path);
+    expect(url.search).toBe('');
+    const token = new URLSearchParams(url.hash.slice(1)).get('token');
+    if (!token) throw new Error('Expected a token in the link fragment');
+    return token;
+  }
+  return { ...api, send, post, readLink };
+}
+
+describe('account email links', () => {
+  it('accepts recovery requests generically, stores only a hash, and allows just one reset', async () => {
+    const api = accountEmailFixture();
+    const unknown = await api.post('/forgot-password', { email: 'missing@example.test' });
+    expect(unknown.status).toBe(204);
+    expect(await unknown.text()).toBe('');
+    const initial = await api.post('/login', { email: knownEmail, password: knownPassword });
+    const cookie = cookieFrom(initial);
+    expect((await api.post('/forgot-password', { email: knownEmail.toUpperCase() })).status).toBe(
+      204,
+    );
+    const token = await api.readLink('/reset-password');
+    expect(api.send).toHaveBeenCalledTimes(1);
+    expect(api.send.mock.calls[0]?.[0].to).toBe(knownEmail);
+    expect(api.links.has(token)).toBe(false);
+    const stored = api.links.get(tokenHash(token));
+    expect(stored?.purpose).toBe('PASSWORD_RESET');
+    expect(stored?.expiresAt.getTime()).toBeGreaterThan(Date.now());
+    expect((await api.post('/forgot-password', { email: knownEmail })).status).toBe(204);
+    await vi.waitFor(() => expect(api.transaction.accountLink.updateMany).toHaveBeenCalled());
+    expect(api.send).toHaveBeenCalledTimes(1);
+    expect((await api.post('/verify-email', { token }, knownUserId)).status).toBe(400);
+
+    const password = 'different-password-after-reset';
+    const attempts = await Promise.all([
+      api.post('/reset-password', { token, password }),
+      api.post('/reset-password', { token, password }),
+    ]);
+    expect(attempts.map((response) => response.status).sort()).toEqual([204, 400]);
+    expect(api.users.get(knownEmail)?.passwordVersion).toBe(1);
+    expect([...api.refreshTokens.values()].every((refresh) => refresh.revokedAt !== null)).toBe(
+      true,
+    );
+    // Even a refresh session created during the reset cannot refresh with the old password version.
+    const oldRefresh = [...api.refreshTokens.values()][0]!;
+    oldRefresh.revokedAt = null;
+    expect(
+      (await api.request('/refresh', { method: 'POST', headers: { Cookie: cookie } })).status,
+    ).toBe(401);
+    expect((await api.post('/login', { email: knownEmail, password: knownPassword })).status).toBe(
+      401,
+    );
+    expect((await api.post('/login', { email: knownEmail, password })).status).toBe(200);
+  });
+
+  it('sends verification on registration and only verifies the matching signed-in account', async () => {
+    const api = accountEmailFixture();
+    const email = 'new-player@example.test';
+    const registration = await api.post('/register', {
+      email,
+      displayName: 'New Player',
+      password: knownPassword,
+    });
+    expect(registration.status).toBe(201);
+    const session = await registration.json();
+    expect(session.user.emailVerified).toBe(false);
+    const token = await api.readLink('/verify-email');
+    expect((await api.post('/verify-email', { token })).status).toBe(401);
+    expect((await api.post('/verify-email', { token }, knownUserId)).status).toBe(400);
+    expect((await api.post('/verify-email', { token }, session.user.id)).status).toBe(204);
+    expect((await api.post('/verify-email', { token }, session.user.id)).status).toBe(400);
+    const me = await api.request('/me', {
+      headers: { Authorization: `Bearer ${session.accessToken}` },
+    });
+    expect((await me.json()).user.emailVerified).toBe(true);
+  });
+
+  it('rejects expired links and does not consume them on a cross-origin request', async () => {
+    const api = accountEmailFixture();
+    expect((await api.post('/resend-verification', {}, knownUserId)).status).toBe(204);
+    const token = await api.readLink('/verify-email');
+    const tokenRecord = api.links.get(tokenHash(token))!;
+    const init = postJson({ token });
+    const headers = new Headers(init.headers);
+    headers.set('Origin', 'https://different.example.test');
+    headers.set('Authorization', `Bearer ${signAccessToken(knownUserId, accessSecret, issuer)}`);
+    expect((await api.request('/verify-email', { ...init, headers })).status).toBe(403);
+    expect(api.links.has(tokenHash(token))).toBe(true);
+    tokenRecord.expiresAt = new Date(0);
+    expect((await api.post('/verify-email', { token }, knownUserId)).status).toBe(400);
+    expect(api.users.get(knownEmail)?.emailVerifiedAt).toBeNull();
+  });
+});
 
 afterEach(async () => {
   await Promise.all(
@@ -318,6 +533,7 @@ describe('auth routes', () => {
       id: knownUserId,
       email: knownEmail,
       displayName: knownDisplayName,
+      emailVerified: false,
     });
     expect(success.headers.get('set-cookie')).toContain('HttpOnly');
 
@@ -430,6 +646,7 @@ describe('auth routes', () => {
         email: knownEmail,
         displayName: knownDisplayName,
         preferredCurrency: 'USD',
+        emailVerified: false,
       },
     });
   });
@@ -510,6 +727,8 @@ describe('currency routes', () => {
       email: 'other@example.test',
       displayName: 'Other',
       passwordHash: knownPasswordHash,
+      passwordVersion: 0,
+      emailVerifiedAt: null,
       preferredCurrency: 'USD',
     };
     api.users.set(other.email, other);

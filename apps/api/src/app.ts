@@ -13,6 +13,7 @@ import { createTaxonomyRouter } from './games/taxonomy-router.js';
 import { createCuratedDealsRouter } from './pricing/curated-deals-router.js';
 import { createOpenApiDocument } from './openapi.js';
 import { createAuthRouter } from './auth/auth-router.js';
+import { createMailer } from './alerts/mailer.js';
 import { createWishlistRouter } from './wishlist/wishlist-router.js';
 import { createAlertsRouter } from './alerts/alerts-router.js';
 import { createNotificationsRouter } from './alerts/notifications-router.js';
@@ -82,6 +83,17 @@ app.use(
     cookieSameSite: env.AUTH_COOKIE_SAME_SITE,
     rateLimitWindowMs: env.AUTH_RATE_LIMIT_WINDOW_MINUTES * 60 * 1000,
     rateLimitMax: env.AUTH_RATE_LIMIT_MAX,
+    ...(env.EMAIL_PROVIDER === 'resend'
+      ? {
+          accountMailer: createMailer({
+            provider: env.EMAIL_PROVIDER,
+            logger,
+            resendApiKey: env.RESEND_API_KEY,
+            emailFrom: env.EMAIL_FROM,
+          }),
+          onAccountEmailError: () => logger.warn('Account email could not be sent'),
+        }
+      : {}),
   }),
 );
 app.use('/api/v1/wishlist', createWishlistRouter(prisma, env.JWT_ACCESS_SECRET, env.JWT_ISSUER));
